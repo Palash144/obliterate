@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers the workflow only when you push tags matching v1.0.0, v2.1.3, etc.
+
+permissions:
+  contents: write # Crucial permission for uploading artifacts to the release
+
+jobs:
+  release:
+    name: Build and Release
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            artifact_name: obliterate
+            asset_name: obliterate-linux-amd64
+          - os: macos-latest
+            artifact_name: obliterate
+            asset_name: obliterate-macos-amd64
+          - os: windows-latest
+            artifact_name: obliterate.exe
+            asset_name: obliterate-windows-amd64.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build binary for release
+        run: cargo build --release
+
+      - name: Packaging Binary (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          cd target/release
+          mv obliterate ${{ matrix.asset_name }} # Replace 'obliterate' with your actual binary name
+
+      - name: Packaging Binary (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          cd target/release
+          Rename-Item obliterate.exe ${{ matrix.asset_name }} # Replace 'obliterate.exe' with your actual binary name
+
+      - name: Upload Binaries to GitHub Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/release/${{ matrix.asset_name }}
+          asset_name: ${{ matrix.asset_name }}
+          tag: ${{ github.ref }}
+          overwrite: true
