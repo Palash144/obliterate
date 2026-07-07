@@ -32,8 +32,13 @@ fn run_status() -> Result<()> {
     } else {
         "no"
     };
+    let endpoint_available = if super::telemetry::telemetry_available() {
+        "yes"
+    } else {
+        "no (build has no telemetry endpoint configured)"
+    };
 
-    let env_override = std::env::var("RTK_TELEMETRY_DISABLED").unwrap_or_default() == "1";
+    let env_override = std::env::var("OBLITERATE_TELEMETRY_DISABLED").unwrap_or_default() == "1";
 
     println!("Telemetry status:");
     println!("  consent:       {}", consent_str);
@@ -41,25 +46,24 @@ fn run_status() -> Result<()> {
         println!("  consent date:  {}", date);
     }
     println!("  enabled:       {}", enabled_str);
+    println!("  endpoint:      {}", endpoint_available);
+    println!("  cadence:       at most once per day");
     if env_override {
         println!("  env override:  blocked");
     }
-
-    println!();
-    println!("Telemetry has been removed from this build. No data is collected");
-    println!("or transmitted from your machine. All command analytics stay local");
-    println!("and are visible via `obliterate gain`.");
 
     Ok(())
 }
 
 fn run_enable() -> Result<()> {
-    // Telemetry has been removed from this build. The command is kept for
-    // compatibility so existing docs/scripts don't error, but enabling is a
-    // no-op — there is no endpoint and no sender.
-    crate::hooks::init::save_telemetry_consent(false).ok();
-    println!("Telemetry is not available in this build. Nothing was enabled.");
-    println!("All command analytics stay local — see `obliterate gain`.");
+    crate::hooks::init::save_telemetry_consent(true)?;
+    if super::telemetry::telemetry_available() {
+        println!("Telemetry enabled.");
+        println!("Anonymous aggregate metrics may be sent at most once per day.");
+    } else {
+        println!("Telemetry preference saved as enabled.");
+        println!("This build has no telemetry endpoint configured, so nothing will be sent.");
+    }
     Ok(())
 }
 
@@ -70,7 +74,6 @@ fn run_disable() -> Result<()> {
 }
 
 fn run_forget() -> Result<()> {
-    // No remote telemetry in this build — only local data exists to forget.
     crate::hooks::init::save_telemetry_consent(false).ok();
 
     let salt_path = super::telemetry::salt_file_path();
@@ -88,7 +91,7 @@ fn run_forget() -> Result<()> {
     // Purge local tracking database (right to erasure applies to local data too).
     let db_path = dirs::data_local_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
-        .join(super::constants::RTK_DATA_DIR)
+        .join(super::constants::OBLITERATE_DATA_DIR)
         .join(super::constants::HISTORY_DB);
     if db_path.exists() {
         match std::fs::remove_file(&db_path) {
@@ -98,6 +101,8 @@ fn run_forget() -> Result<()> {
     }
 
     println!("All local telemetry and tracking data deleted.");
-    println!("(No remote endpoint exists in this build — nothing was ever sent.)");
+    if !super::telemetry::telemetry_available() {
+        println!("(This build has no telemetry endpoint configured — nothing was sent.)");
+    }
     Ok(())
 }

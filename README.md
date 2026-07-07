@@ -66,7 +66,7 @@ rustup update stable
 ### Build & install Obliterate
 
 ```bash
-git clone https://github.com/Palash144/obliterate
+git clone https://bmw.ghe.com/Palash-Lambhate/obliterate
 cd obliterate
 cargo install --path .
 ```
@@ -121,6 +121,8 @@ obliterate jest / obliterate vitest
 # Build & lint
 obliterate cargo build
 obliterate cargo clippy
+obliterate mvn verify       # Maven build/test lifecycle (filtered)
+obliterate mvn dependency:tree
 obliterate lint               # ESLint, grouped by rule
 obliterate tsc                # TypeScript errors, grouped by file
 obliterate ruff check
@@ -135,6 +137,7 @@ obliterate aws ec2 describe-instances
 obliterate gain               # See token savings stats
 obliterate gain --graph       # ASCII graph (last 30 days)
 obliterate gain --history     # Recent command history
+obliterate parse-health       # Full/degraded/passthrough parser quality
 ```
 
 ---
@@ -244,6 +247,29 @@ obliterate gain --top 10             # Top 10 most-used commands
 obliterate gain --since 7            # Last 7 days only
 obliterate gain --format json        # Machine-readable (for dashboards)
 obliterate gain --all                # All-time stats
+```
+
+### Parse quality dashboard
+
+```bash
+obliterate parse-health
+obliterate parse-health --project
+obliterate parse-health --format json
+```
+
+Shows parser-tier distribution (`full`, `degraded`, `passthrough`) and the top
+commands where parsers are underperforming.
+
+### Telemetry (anonymous aggregate, opt-in)
+
+Obliterate telemetry is consent-gated and sends anonymous aggregate metrics at
+most once per day when enabled:
+
+```bash
+obliterate telemetry status
+obliterate telemetry enable
+obliterate telemetry disable
+obliterate telemetry forget
 ```
 
 ### Watch savings live

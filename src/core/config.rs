@@ -1,6 +1,6 @@
 //! Reads user settings from config.toml.
 
-use super::constants::{CONFIG_TOML, DEFAULT_HISTORY_DAYS, RTK_DATA_DIR};
+use super::constants::{CONFIG_TOML, DEFAULT_HISTORY_DAYS, OBLITERATE_DATA_DIR};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -34,7 +34,7 @@ pub struct HooksConfig {
     /// to a filter, then re-prepended on the rewrite. For example, with
     /// `transparent_prefixes = ["docker exec mycontainer"]`, the command
     /// `docker exec mycontainer git status` rewrites to
-    /// `docker exec mycontainer rtk git status` instead of passing through
+    /// `docker exec mycontainer obliterate git status` instead of passing through
     /// unrewritten.
     ///
     /// Useful for any per-project env wrapper that sits in front of every
@@ -131,6 +131,18 @@ pub struct LimitsConfig {
     pub status_max_untracked: usize,
     /// Max chars for parser passthrough fallback (default: 2000)
     pub passthrough_max_chars: usize,
+    /// Optional override for global CAP_ERRORS truncation class
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cap_errors: Option<usize>,
+    /// Optional override for global CAP_WARNINGS truncation class
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cap_warnings: Option<usize>,
+    /// Optional override for global CAP_LIST truncation class
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cap_list: Option<usize>,
+    /// Optional override for global CAP_INVENTORY truncation class
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cap_inventory: Option<usize>,
 }
 
 impl Default for LimitsConfig {
@@ -141,6 +153,10 @@ impl Default for LimitsConfig {
             status_max_files: 15,
             status_max_untracked: 10,
             passthrough_max_chars: 2000,
+            cap_errors: None,
+            cap_warnings: None,
+            cap_list: None,
+            cap_inventory: None,
         }
     }
 }
@@ -184,7 +200,7 @@ impl Config {
 
 fn get_config_path() -> Result<PathBuf> {
     let config_dir = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
-    Ok(config_dir.join(RTK_DATA_DIR).join(CONFIG_TOML))
+    Ok(config_dir.join(OBLITERATE_DATA_DIR).join(CONFIG_TOML))
 }
 
 pub fn show_config() -> Result<()> {
@@ -295,5 +311,35 @@ consent_date = "2026-04-10T12:00:00Z"
             config.telemetry.consent_date.as_deref(),
             Some("2026-04-10T12:00:00Z")
         );
+    }
+
+    #[test]
+    fn test_limits_cap_overrides_deserialize() {
+        let toml = r#"
+[limits]
+grep_max_results = 200
+grep_max_per_file = 25
+status_max_files = 15
+status_max_untracked = 10
+passthrough_max_chars = 2000
+cap_errors = 12
+cap_warnings = 8
+cap_list = 30
+cap_inventory = 75
+"#;
+        let config: Config = toml::from_str(toml).expect("valid toml");
+        assert_eq!(config.limits.cap_errors, Some(12));
+        assert_eq!(config.limits.cap_warnings, Some(8));
+        assert_eq!(config.limits.cap_list, Some(30));
+        assert_eq!(config.limits.cap_inventory, Some(75));
+    }
+
+    #[test]
+    fn test_limits_cap_overrides_default_to_none() {
+        let config = Config::default();
+        assert_eq!(config.limits.cap_errors, None);
+        assert_eq!(config.limits.cap_warnings, None);
+        assert_eq!(config.limits.cap_list, None);
+        assert_eq!(config.limits.cap_inventory, None);
     }
 }

@@ -1,25 +1,25 @@
 //! Token savings tracking and analytics system.
 //!
-//! This module provides comprehensive tracking of RTK command executions,
+//! This module provides comprehensive tracking of Obliterate command executions,
 //! recording token savings, execution times, and providing aggregation APIs
 //! for daily/weekly/monthly statistics.
 //!
 //! # Architecture
 //!
-//! - Storage: SQLite database (~/.local/share/rtk/tracking.db)
+//! - Storage: SQLite database (~/.local/share/obliterate/tracking.db)
 //! - Retention: 90-day automatic cleanup
 //! - Metrics: Input/output tokens, savings %, execution time
 //!
 //! # Quick Start
 //!
 //! ```no_run
-//! use rtk::tracking::{TimedExecution, Tracker};
+//! use obliterate::tracking::{TimedExecution, Tracker};
 //!
 //! // Track a command execution
 //! let timer = TimedExecution::start();
 //! let input = "raw output";
 //! let output = "filtered output";
-//! timer.track("ls -la", "rtk ls", input, output);
+//! timer.track("ls -la", "obliterate ls", input, output);
 //!
 //! // Query statistics
 //! let tracker = Tracker::new().unwrap();
@@ -61,7 +61,7 @@ fn project_filter_params(project_path: Option<&str>) -> (Option<String>, Option<
     }
 }
 
-use super::constants::{DEFAULT_HISTORY_DAYS, HISTORY_DB, RTK_DATA_DIR};
+use super::constants::{DEFAULT_HISTORY_DAYS, HISTORY_DB, OBLITERATE_DATA_DIR};
 
 /// Main tracking interface for recording and querying command history.
 ///
@@ -72,17 +72,17 @@ use super::constants::{DEFAULT_HISTORY_DAYS, HISTORY_DB, RTK_DATA_DIR};
 ///
 /// # Database Location
 ///
-/// - Linux: `~/.local/share/rtk/tracking.db`
-/// - macOS: `~/Library/Application Support/rtk/tracking.db`
-/// - Windows: `%APPDATA%\rtk\tracking.db`
+/// - Linux: `~/.local/share/obliterate/tracking.db`
+/// - macOS: `~/Library/Application Support/obliterate/tracking.db`
+/// - Windows: `%APPDATA%\obliterate\tracking.db`
 ///
 /// # Examples
 ///
 /// ```no_run
-/// use rtk::tracking::Tracker;
+/// use obliterate::tracking::Tracker;
 ///
 /// let tracker = Tracker::new()?;
-/// tracker.record("ls -la", "rtk ls", 1000, 200, 50)?;
+/// tracker.record("ls -la", "obliterate ls", 1000, 200, 50)?;
 ///
 /// let summary = tracker.get_summary()?;
 /// println!("Total saved: {} tokens", summary.total_saved);
@@ -99,8 +99,8 @@ pub struct Tracker {
 pub struct CommandRecord {
     /// UTC timestamp when command was executed
     pub timestamp: DateTime<Utc>,
-    /// RTK command that was executed (e.g., "rtk ls")
-    pub rtk_cmd: String,
+    /// Obliterate command that was executed (e.g., "obliterate ls")
+    pub obliterate_cmd: String,
     /// Number of tokens saved (input - output)
     pub saved_tokens: usize,
     /// Savings percentage ((saved / input) * 100)
@@ -223,6 +223,34 @@ pub struct MonthStats {
 /// Type alias for command statistics tuple: (command, count, saved_tokens, avg_savings_pct, avg_time_ms)
 type CommandStats = (String, usize, usize, f64, u64);
 
+/// Parse tier labels captured from parser-backed commands.
+pub const PARSE_TIER_FULL: &str = "full";
+pub const PARSE_TIER_DEGRADED: &str = "degraded";
+pub const PARSE_TIER_PASSTHROUGH: &str = "passthrough";
+pub const PARSE_TIER_UNTRACKED: &str = "untracked";
+
+#[derive(Debug, Serialize)]
+pub struct ParseTierCommandStat {
+    pub command: String,
+    pub total: usize,
+    pub degraded: usize,
+    pub passthrough: usize,
+    pub degraded_pct: f64,
+    pub passthrough_pct: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ParseTierSummary {
+    pub total_tracked: usize,
+    pub full: usize,
+    pub degraded: usize,
+    pub passthrough: usize,
+    pub untracked: usize,
+    pub degraded_pct: f64,
+    pub passthrough_pct: f64,
+    pub by_command: Vec<ParseTierCommandStat>,
+}
+
 impl Tracker {
     /// Create a new tracker instance.
     ///
@@ -241,7 +269,7 @@ impl Tracker {
     /// # Examples
     ///
     /// ```no_run
-    /// use rtk::tracking::Tracker;
+    /// use obliterate::tracking::Tracker;
     ///
     /// let tracker = Tracker::new()?;
     /// # Ok::<(), anyhow::Error>(())
@@ -264,7 +292,8 @@ impl Tracker {
                 id INTEGER PRIMARY KEY,
                 timestamp TEXT NOT NULL,
                 original_cmd TEXT NOT NULL,
-                rtk_cmd TEXT NOT NULL,
+                obliterate_cmd TEXT NOT NULL,
+                parse_tier TEXT NOT NULL DEFAULT 'untracked',
                 input_tokens INTEGER NOT NULL,
                 output_tokens INTEGER NOT NULL,
                 saved_tokens INTEGER NOT NULL,
@@ -288,6 +317,11 @@ impl Tracker {
             "ALTER TABLE commands ADD COLUMN project_path TEXT DEFAULT ''",
             [],
         );
+        // Migration: add parse_tier column if it doesn't exist
+        let _ = conn.execute(
+            "ALTER TABLE commands ADD COLUMN parse_tier TEXT NOT NULL DEFAULT 'untracked'",
+            [],
+        );
         // One-time migration: normalize NULLs from pre-default schema // changed: guarded with EXISTS
         let has_nulls: bool = conn
             .query_row(
@@ -299,6 +333,19 @@ impl Tracker {
         if has_nulls {
             let _ = conn.execute(
                 "UPDATE commands SET project_path = '' WHERE project_path IS NULL",
+                [],
+            );
+        }
+        let has_null_parse_tier: bool = conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM commands WHERE parse_tier IS NULL OR parse_tier = '')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+        if has_null_parse_tier {
+            let _ = conn.execute(
+                "UPDATE commands SET parse_tier = 'untracked' WHERE parse_tier IS NULL OR parse_tier = ''",
                 [],
             );
         }
@@ -342,7 +389,8 @@ impl Tracker {
                 id INTEGER PRIMARY KEY,
                 timestamp TEXT NOT NULL,
                 original_cmd TEXT NOT NULL,
-                rtk_cmd TEXT NOT NULL,
+                obliterate_cmd TEXT NOT NULL,
+                parse_tier TEXT NOT NULL DEFAULT 'untracked',
                 input_tokens INTEGER NOT NULL,
                 output_tokens INTEGER NOT NULL,
                 saved_tokens INTEGER NOT NULL,
@@ -385,24 +433,44 @@ impl Tracker {
     /// # Arguments
     ///
     /// - `original_cmd`: The standard command (e.g., "ls -la")
-    /// - `rtk_cmd`: The RTK command used (e.g., "rtk ls")
+    /// - `obliterate_cmd`: The Obliterate command used (e.g., "obliterate ls")
     /// - `input_tokens`: Estimated tokens from standard command output
-    /// - `output_tokens`: Actual tokens from RTK output
+    /// - `output_tokens`: Actual tokens from Obliterate output
     /// - `exec_time_ms`: Execution time in milliseconds
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// use rtk::tracking::Tracker;
+    /// use obliterate::tracking::Tracker;
     ///
     /// let tracker = Tracker::new()?;
-    /// tracker.record("ls -la", "rtk ls", 1000, 200, 50)?;
+    /// tracker.record("ls -la", "obliterate ls", 1000, 200, 50)?;
     /// # Ok::<(), anyhow::Error>(())
     /// ```
     pub fn record(
         &self,
         original_cmd: &str,
-        rtk_cmd: &str,
+        obliterate_cmd: &str,
+        input_tokens: usize,
+        output_tokens: usize,
+        exec_time_ms: u64,
+    ) -> Result<()> {
+        self.record_with_parse_tier(
+            original_cmd,
+            obliterate_cmd,
+            PARSE_TIER_UNTRACKED,
+            input_tokens,
+            output_tokens,
+            exec_time_ms,
+        )
+    }
+
+    /// Record a command execution with explicit parser tier metadata.
+    pub fn record_with_parse_tier(
+        &self,
+        original_cmd: &str,
+        obliterate_cmd: &str,
+        parse_tier: &str,
         input_tokens: usize,
         output_tokens: usize,
         exec_time_ms: u64,
@@ -417,13 +485,14 @@ impl Tracker {
         let project_path = current_project_path_string(); // added: record cwd
 
         self.conn.execute(
-            "INSERT INTO commands (timestamp, original_cmd, rtk_cmd, project_path, input_tokens, output_tokens, saved_tokens, savings_pct, exec_time_ms)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)", // added: project_path
+            "INSERT INTO commands (timestamp, original_cmd, obliterate_cmd, project_path, parse_tier, input_tokens, output_tokens, saved_tokens, savings_pct, exec_time_ms)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             params![
                 Utc::now().to_rfc3339(),
                 original_cmd,
-                rtk_cmd,
+                obliterate_cmd,
                 project_path, // added
+                parse_tier,
                 input_tokens as i64,
                 output_tokens as i64,
                 saved as i64,
@@ -541,6 +610,99 @@ impl Tracker {
         })
     }
 
+    /// Get parser tier quality summary, including per-command degradation hotspots.
+    pub fn get_parse_tier_summary(
+        &self,
+        project_path: Option<&str>,
+        limit: usize,
+    ) -> Result<ParseTierSummary> {
+        let (project_exact, project_glob) = project_filter_params(project_path);
+        let mut stmt = self.conn.prepare(
+            "SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN parse_tier = 'full' THEN 1 ELSE 0 END) as full_count,
+                SUM(CASE WHEN parse_tier = 'degraded' THEN 1 ELSE 0 END) as degraded_count,
+                SUM(CASE WHEN parse_tier = 'passthrough' THEN 1 ELSE 0 END) as passthrough_count,
+                SUM(CASE WHEN parse_tier = 'untracked' THEN 1 ELSE 0 END) as untracked_count
+             FROM commands
+             WHERE (?1 IS NULL OR project_path = ?1 OR project_path GLOB ?2)",
+        )?;
+        let (total, full, degraded, passthrough, untracked): (i64, i64, i64, i64, i64) = stmt
+            .query_row(params![project_exact, project_glob], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, i64>(4)?,
+                ))
+            })?;
+
+        let mut by_cmd_stmt = self.conn.prepare(
+            "SELECT
+                obliterate_cmd,
+                COUNT(*) as total,
+                SUM(CASE WHEN parse_tier = 'degraded' THEN 1 ELSE 0 END) as degraded_count,
+                SUM(CASE WHEN parse_tier = 'passthrough' THEN 1 ELSE 0 END) as passthrough_count
+             FROM commands
+             WHERE (?1 IS NULL OR project_path = ?1 OR project_path GLOB ?2)
+               AND parse_tier IN ('full', 'degraded', 'passthrough')
+             GROUP BY obliterate_cmd
+             HAVING degraded_count > 0 OR passthrough_count > 0
+             ORDER BY (degraded_count + passthrough_count) DESC, total DESC
+             LIMIT ?3",
+        )?;
+
+        let by_command = by_cmd_stmt
+            .query_map(params![project_exact, project_glob, limit as i64], |row| {
+                let total = row.get::<_, i64>(1)? as usize;
+                let degraded = row.get::<_, i64>(2)? as usize;
+                let passthrough = row.get::<_, i64>(3)? as usize;
+                let degraded_pct = if total > 0 {
+                    (degraded as f64 / total as f64) * 100.0
+                } else {
+                    0.0
+                };
+                let passthrough_pct = if total > 0 {
+                    (passthrough as f64 / total as f64) * 100.0
+                } else {
+                    0.0
+                };
+                Ok(ParseTierCommandStat {
+                    command: row.get(0)?,
+                    total,
+                    degraded,
+                    passthrough,
+                    degraded_pct,
+                    passthrough_pct,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let total_tracked = total as usize;
+        let degraded_pct = if total_tracked > 0 {
+            (degraded as f64 / total as f64) * 100.0
+        } else {
+            0.0
+        };
+        let passthrough_pct = if total_tracked > 0 {
+            (passthrough as f64 / total as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        Ok(ParseTierSummary {
+            total_tracked,
+            full: full as usize,
+            degraded: degraded as usize,
+            passthrough: passthrough as usize,
+            untracked: untracked as usize,
+            degraded_pct,
+            passthrough_pct,
+            by_command,
+        })
+    }
+
     /// Get overall summary statistics across all recorded commands.
     ///
     /// Returns aggregated metrics including:
@@ -552,7 +714,7 @@ impl Tracker {
     /// # Examples
     ///
     /// ```no_run
-    /// use rtk::tracking::Tracker;
+    /// use obliterate::tracking::Tracker;
     ///
     /// let tracker = Tracker::new()?;
     /// let summary = tracker.get_summary()?;
@@ -636,10 +798,10 @@ impl Tracker {
     ) -> Result<Vec<CommandStats>> {
         let (project_exact, project_glob) = project_filter_params(project_path); // added
         let mut stmt = self.conn.prepare(
-            "SELECT rtk_cmd, COUNT(*), SUM(saved_tokens), AVG(savings_pct), AVG(exec_time_ms)
+            "SELECT obliterate_cmd, COUNT(*), SUM(saved_tokens), AVG(savings_pct), AVG(exec_time_ms)
              FROM commands
              WHERE (?1 IS NULL OR project_path = ?1 OR project_path GLOB ?2)
-             GROUP BY rtk_cmd
+             GROUP BY obliterate_cmd
              ORDER BY SUM(saved_tokens) DESC
              LIMIT 10", // added: project filter in WHERE
         )?;
@@ -690,7 +852,7 @@ impl Tracker {
     /// # Examples
     ///
     /// ```no_run
-    /// use rtk::tracking::Tracker;
+    /// use obliterate::tracking::Tracker;
     ///
     /// let tracker = Tracker::new()?;
     /// let days = tracker.get_all_days()?;
@@ -763,7 +925,7 @@ impl Tracker {
     /// # Examples
     ///
     /// ```no_run
-    /// use rtk::tracking::Tracker;
+    /// use obliterate::tracking::Tracker;
     ///
     /// let tracker = Tracker::new()?;
     /// let weeks = tracker.get_by_week()?;
@@ -838,7 +1000,7 @@ impl Tracker {
     /// # Examples
     ///
     /// ```no_run
-    /// use rtk::tracking::Tracker;
+    /// use obliterate::tracking::Tracker;
     ///
     /// let tracker = Tracker::new()?;
     /// let months = tracker.get_by_month()?;
@@ -914,13 +1076,13 @@ impl Tracker {
     /// # Examples
     ///
     /// ```no_run
-    /// use rtk::tracking::Tracker;
+    /// use obliterate::tracking::Tracker;
     ///
     /// let tracker = Tracker::new()?;
     /// let recent = tracker.get_recent(10)?;
     /// for cmd in recent {
     ///     println!("{}: {} saved {:.1}%",
-    ///         cmd.timestamp, cmd.rtk_cmd, cmd.savings_pct);
+    ///         cmd.timestamp, cmd.obliterate_cmd, cmd.savings_pct);
     /// }
     /// # Ok::<(), anyhow::Error>(())
     /// ```
@@ -937,7 +1099,7 @@ impl Tracker {
     ) -> Result<Vec<CommandRecord>> {
         let (project_exact, project_glob) = project_filter_params(project_path); // added
         let mut stmt = self.conn.prepare(
-            "SELECT timestamp, rtk_cmd, saved_tokens, savings_pct
+            "SELECT timestamp, obliterate_cmd, saved_tokens, savings_pct
              FROM commands
              WHERE (?1 IS NULL OR project_path = ?1 OR project_path GLOB ?2)
              ORDER BY timestamp DESC
@@ -951,7 +1113,7 @@ impl Tracker {
                     timestamp: DateTime::parse_from_rfc3339(&row.get::<_, String>(0)?)
                         .map(|dt| dt.with_timezone(&Utc))
                         .unwrap_or_else(|_| Utc::now()),
-                    rtk_cmd: row.get(1)?,
+                    obliterate_cmd: row.get(1)?,
                     saved_tokens: row.get::<_, i64>(2)? as usize,
                     savings_pct: row.get(3)?,
                 })
@@ -975,12 +1137,12 @@ impl Tracker {
     /// Get top N commands by frequency (for telemetry).
     pub fn top_commands(&self, limit: usize) -> Result<Vec<String>> {
         let mut stmt = self.conn.prepare(
-            "SELECT rtk_cmd, COUNT(*) as cnt FROM commands
-             GROUP BY rtk_cmd ORDER BY cnt DESC LIMIT ?1",
+            "SELECT obliterate_cmd, COUNT(*) as cnt FROM commands
+             GROUP BY obliterate_cmd ORDER BY cnt DESC LIMIT ?1",
         )?;
         let rows = stmt.query_map(params![limit as i64], |row| {
             let cmd: String = row.get(0)?;
-            // Extract just the command name (e.g. "rtk git status" → "git")
+            // Extract just the command name (e.g. "obliterate git status" → "git")
             Ok(cmd.split_whitespace().nth(1).unwrap_or(&cmd).to_string())
         })?;
         Ok(rows.filter_map(|r| r.ok()).collect())
@@ -1052,9 +1214,9 @@ impl Tracker {
     /// Count commands with low savings (<30%) — filters that need improvement.
     pub fn low_savings_commands(&self, limit: usize) -> Result<Vec<(String, f64)>> {
         let mut stmt = self.conn.prepare(
-            "SELECT rtk_cmd, AVG(savings_pct) as avg_sav FROM commands
+            "SELECT obliterate_cmd, AVG(savings_pct) as avg_sav FROM commands
              WHERE input_tokens > 0
-             GROUP BY rtk_cmd
+             GROUP BY obliterate_cmd
              HAVING avg_sav < 30.0 AND avg_sav > 0.0
              ORDER BY COUNT(*) DESC LIMIT ?1",
         )?;
@@ -1071,9 +1233,9 @@ impl Tracker {
     pub fn avg_savings_per_command(&self) -> Result<f64> {
         let avg: f64 = self.conn.query_row(
             "SELECT COALESCE(AVG(avg_sav), 0.0) FROM (
-                SELECT rtk_cmd, AVG(savings_pct) as avg_sav
+                SELECT obliterate_cmd, AVG(savings_pct) as avg_sav
                 FROM commands WHERE input_tokens > 0
-                GROUP BY rtk_cmd
+                GROUP BY obliterate_cmd
             )",
             [],
             |row| row.get(0),
@@ -1081,11 +1243,11 @@ impl Tracker {
         Ok(avg)
     }
 
-    /// Count invocations of a specific meta-command (by rtk_cmd suffix).
+    /// Count invocations of a specific meta-command (by obliterate_cmd suffix).
     pub fn count_meta_command(&self, name: &str) -> Result<i64> {
-        let pattern = format!("rtk {}", name);
+        let pattern = format!("obliterate {}", name);
         let count: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM commands WHERE rtk_cmd LIKE ?1 || '%'",
+            "SELECT COUNT(*) FROM commands WHERE obliterate_cmd LIKE ?1 || '%'",
             params![pattern],
             |row| row.get(0),
         )?;
@@ -1148,9 +1310,9 @@ impl Tracker {
             return Ok(vec![]);
         }
         let mut stmt = self.conn.prepare(
-            "SELECT rtk_cmd, COUNT(*) as cnt FROM commands
+            "SELECT obliterate_cmd, COUNT(*) as cnt FROM commands
              WHERE input_tokens > 0 AND timestamp >= datetime('now', '-90 days')
-             GROUP BY rtk_cmd ORDER BY cnt DESC",
+             GROUP BY obliterate_cmd ORDER BY cnt DESC",
         )?;
         let mut categories: std::collections::HashMap<String, f64> =
             std::collections::HashMap::new();
@@ -1196,9 +1358,9 @@ impl Tracker {
     }
 }
 
-/// Map an rtk_cmd to an ecosystem category for telemetry.
-fn categorize_command(rtk_cmd: &str) -> String {
-    let parts: Vec<&str> = rtk_cmd.split_whitespace().collect();
+/// Map an obliterate_cmd to an ecosystem category for telemetry.
+fn categorize_command(obliterate_cmd: &str) -> String {
+    let parts: Vec<&str> = obliterate_cmd.split_whitespace().collect();
     let tool = parts.get(1).copied().unwrap_or("other");
     match tool {
         "git" | "gh" | "gt" => "git",
@@ -1210,6 +1372,7 @@ fn categorize_command(rtk_cmd: &str) -> String {
         "docker" | "kubectl" => "cloud",
         "rspec" | "rubocop" | "rake" => "ruby",
         "dotnet" => "dotnet",
+        "mvn" | "gradlew" => "jvm",
         "ls" | "tree" | "grep" | "find" | "wc" | "read" | "env" | "json" | "log" | "smart"
         | "diff" | "deps" | "summary" | "format" => "system",
         _ => "other",
@@ -1218,8 +1381,8 @@ fn categorize_command(rtk_cmd: &str) -> String {
 }
 
 fn get_db_path() -> Result<PathBuf> {
-    // Priority 1: Environment variable RTK_DB_PATH
-    if let Ok(custom_path) = std::env::var("RTK_DB_PATH") {
+    // Priority 1: Environment variable OBLITERATE_DB_PATH
+    if let Ok(custom_path) = std::env::var("OBLITERATE_DB_PATH") {
         return Ok(PathBuf::from(custom_path));
     }
 
@@ -1232,7 +1395,7 @@ fn get_db_path() -> Result<PathBuf> {
 
     // Priority 3: Default platform-specific location
     let data_dir = dirs::data_local_dir().unwrap_or_else(|| PathBuf::from("."));
-    Ok(data_dir.join(RTK_DATA_DIR).join(HISTORY_DB))
+    Ok(data_dir.join(OBLITERATE_DATA_DIR).join(HISTORY_DB))
 }
 
 /// Individual parse failure record.
@@ -1274,7 +1437,7 @@ pub fn record_parse_failure_silent(raw_command: &str, error_message: &str, succe
 /// # Examples
 ///
 /// ```
-/// use rtk::tracking::estimate_tokens;
+/// use obliterate::tracking::estimate_tokens;
 ///
 /// assert_eq!(estimate_tokens(""), 0);
 /// assert_eq!(estimate_tokens("abcd"), 1);  // 4 chars = 1 token
@@ -1295,12 +1458,12 @@ pub fn estimate_tokens(text: &str) -> usize {
 /// # Examples
 ///
 /// ```no_run
-/// use rtk::tracking::TimedExecution;
+/// use obliterate::tracking::TimedExecution;
 ///
 /// let timer = TimedExecution::start();
 /// let input = execute_standard_command()?;
-/// let output = execute_rtk_command()?;
-/// timer.track("ls -la", "rtk ls", &input, &output);
+/// let output = execute_obliterate_command()?;
+/// timer.track("ls -la", "obliterate ls", &input, &output);
 /// # Ok::<(), anyhow::Error>(())
 /// ```
 pub struct TimedExecution {
@@ -1317,11 +1480,11 @@ impl TimedExecution {
     /// # Examples
     ///
     /// ```no_run
-    /// use rtk::tracking::TimedExecution;
+    /// use obliterate::tracking::TimedExecution;
     ///
     /// let timer = TimedExecution::start();
     /// // ... execute command ...
-    /// timer.track("cmd", "rtk cmd", "input", "output");
+    /// timer.track("cmd", "obliterate cmd", "input", "output");
     /// ```
     pub fn start() -> Self {
         Self {
@@ -1339,21 +1502,21 @@ impl TimedExecution {
     /// # Arguments
     ///
     /// - `original_cmd`: Standard command (e.g., "ls -la")
-    /// - `rtk_cmd`: RTK command used (e.g., "rtk ls")
+    /// - `obliterate_cmd`: Obliterate command used (e.g., "obliterate ls")
     /// - `input`: Standard command output (for token estimation)
-    /// - `output`: RTK command output (for token estimation)
+    /// - `output`: Obliterate command output (for token estimation)
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// use rtk::tracking::TimedExecution;
+    /// use obliterate::tracking::TimedExecution;
     ///
     /// let timer = TimedExecution::start();
     /// let input = "long output...";
     /// let output = "short output";
-    /// timer.track("ls -la", "rtk ls", input, output);
+    /// timer.track("ls -la", "obliterate ls", input, output);
     /// ```
-    pub fn track(&self, original_cmd: &str, rtk_cmd: &str, input: &str, output: &str) {
+    pub fn track(&self, original_cmd: &str, obliterate_cmd: &str, input: &str, output: &str) {
         let elapsed_ms = self.start.elapsed().as_millis() as u64;
         let input_tokens = estimate_tokens(input);
         let output_tokens = estimate_tokens(output);
@@ -1361,7 +1524,32 @@ impl TimedExecution {
         if let Ok(tracker) = Tracker::new() {
             let _ = tracker.record(
                 original_cmd,
-                rtk_cmd,
+                obliterate_cmd,
+                input_tokens,
+                output_tokens,
+                elapsed_ms,
+            );
+        }
+    }
+
+    /// Track command execution with explicit parser tier metadata.
+    pub fn track_with_parse_tier(
+        &self,
+        original_cmd: &str,
+        obliterate_cmd: &str,
+        parse_tier: &str,
+        input: &str,
+        output: &str,
+    ) {
+        let elapsed_ms = self.start.elapsed().as_millis() as u64;
+        let input_tokens = estimate_tokens(input);
+        let output_tokens = estimate_tokens(output);
+
+        if let Ok(tracker) = Tracker::new() {
+            let _ = tracker.record_with_parse_tier(
+                original_cmd,
+                obliterate_cmd,
+                parse_tier,
                 input_tokens,
                 output_tokens,
                 elapsed_ms,
@@ -1378,22 +1566,22 @@ impl TimedExecution {
     /// # Arguments
     ///
     /// - `original_cmd`: Standard command (e.g., "git tag --list")
-    /// - `rtk_cmd`: RTK command used (e.g., "rtk git tag --list")
+    /// - `obliterate_cmd`: Obliterate command used (e.g., "obliterate git tag --list")
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// use rtk::tracking::TimedExecution;
+    /// use obliterate::tracking::TimedExecution;
     ///
     /// let timer = TimedExecution::start();
     /// // ... execute streaming command ...
-    /// timer.track_passthrough("git tag", "rtk git tag");
+    /// timer.track_passthrough("git tag", "obliterate git tag");
     /// ```
-    pub fn track_passthrough(&self, original_cmd: &str, rtk_cmd: &str) {
+    pub fn track_passthrough(&self, original_cmd: &str, obliterate_cmd: &str) {
         let elapsed_ms = self.start.elapsed().as_millis() as u64;
         // input_tokens=0, output_tokens=0 won't dilute savings statistics
         if let Ok(tracker) = Tracker::new() {
-            let _ = tracker.record(original_cmd, rtk_cmd, 0, 0, elapsed_ms);
+            let _ = tracker.record(original_cmd, obliterate_cmd, 0, 0, elapsed_ms);
         }
     }
 }
@@ -1407,7 +1595,7 @@ impl TimedExecution {
 ///
 /// ```
 /// use std::ffi::OsString;
-/// use rtk::tracking::args_display;
+/// use obliterate::tracking::args_display;
 ///
 /// let args = vec![OsString::from("status"), OsString::from("--short")];
 /// assert_eq!(args_display(&args), "status --short");
@@ -1450,7 +1638,7 @@ mod tests {
         let tracker = Tracker::new().expect("Failed to create tracker");
 
         // Use unique test identifier to avoid conflicts with other tests
-        let test_cmd = format!("rtk git status test_{}", std::process::id());
+        let test_cmd = format!("obliterate git status test_{}", std::process::id());
 
         tracker
             .record("git status", &test_cmd, 100, 20, 50)
@@ -1461,7 +1649,7 @@ mod tests {
         // Find our specific test record
         let test_record = recent
             .iter()
-            .find(|r| r.rtk_cmd == test_cmd)
+            .find(|r| r.obliterate_cmd == test_cmd)
             .expect("Test record not found in recent commands");
 
         assert_eq!(test_record.saved_tokens, 80);
@@ -1475,8 +1663,8 @@ mod tests {
 
         // Use unique test identifiers
         let pid = std::process::id();
-        let cmd1 = format!("rtk cmd1_test_{}", pid);
-        let cmd2 = format!("rtk cmd2_passthrough_test_{}", pid);
+        let cmd1 = format!("obliterate cmd1_test_{}", pid);
+        let cmd2 = format!("obliterate cmd2_passthrough_test_{}", pid);
 
         // Record one real command with 80% savings
         tracker
@@ -1493,11 +1681,11 @@ mod tests {
 
         let record1 = recent
             .iter()
-            .find(|r| r.rtk_cmd == cmd1)
+            .find(|r| r.obliterate_cmd == cmd1)
             .expect("cmd1 record not found");
         let record2 = recent
             .iter()
-            .find(|r| r.rtk_cmd == cmd2)
+            .find(|r| r.obliterate_cmd == cmd2)
             .expect("passthrough record not found");
 
         // Verify cmd1 has 80% savings
@@ -1517,26 +1705,26 @@ mod tests {
     fn test_timed_execution_records_time() {
         let timer = TimedExecution::start();
         std::thread::sleep(std::time::Duration::from_millis(10));
-        timer.track("test cmd", "rtk test", "raw input data", "filtered");
+        timer.track("test cmd", "obliterate test", "raw input data", "filtered");
 
         // Verify via DB that record exists
         let tracker = Tracker::new().expect("Failed to create tracker");
         let recent = tracker.get_recent(5).expect("Failed to get recent");
-        assert!(recent.iter().any(|r| r.rtk_cmd == "rtk test"));
+        assert!(recent.iter().any(|r| r.obliterate_cmd == "obliterate test"));
     }
 
     // 6. TimedExecution::track_passthrough records with 0 tokens
     #[test]
     fn test_timed_execution_passthrough() {
         let timer = TimedExecution::start();
-        timer.track_passthrough("git tag", "rtk git tag (passthrough)");
+        timer.track_passthrough("git tag", "obliterate git tag (passthrough)");
 
         let tracker = Tracker::new().expect("Failed to create tracker");
         let recent = tracker.get_recent(5).expect("Failed to get recent");
 
         let pt = recent
             .iter()
-            .find(|r| r.rtk_cmd.contains("passthrough"))
+            .find(|r| r.obliterate_cmd.contains("passthrough"))
             .expect("Passthrough record not found");
 
         // savings_pct should be 0 for passthrough
@@ -1544,7 +1732,51 @@ mod tests {
         assert_eq!(pt.saved_tokens, 0);
     }
 
-    // 7. get_db_path respects environment variable RTK_DB_PATH
+    #[test]
+    fn test_record_with_parse_tier_and_summary() {
+        let tracker = Tracker::new_in_memory().expect("Failed to create in-memory tracker");
+        tracker
+            .record_with_parse_tier(
+                "vitest run",
+                "obliterate vitest run",
+                PARSE_TIER_FULL,
+                1000,
+                200,
+                10,
+            )
+            .expect("failed to record full");
+        tracker
+            .record_with_parse_tier(
+                "vitest run",
+                "obliterate vitest run",
+                PARSE_TIER_DEGRADED,
+                1000,
+                250,
+                10,
+            )
+            .expect("failed to record degraded");
+        tracker
+            .record_with_parse_tier(
+                "pnpm outdated",
+                "obliterate pnpm outdated",
+                PARSE_TIER_PASSTHROUGH,
+                500,
+                450,
+                5,
+            )
+            .expect("failed to record passthrough");
+
+        let summary = tracker
+            .get_parse_tier_summary(None, 10)
+            .expect("failed to get parse tier summary");
+        assert_eq!(summary.total_tracked, 3);
+        assert_eq!(summary.full, 1);
+        assert_eq!(summary.degraded, 1);
+        assert_eq!(summary.passthrough, 1);
+        assert!(summary.by_command.iter().any(|s| s.command == "obliterate vitest run"));
+    }
+
+    // 7. get_db_path respects environment variable OBLITERATE_DB_PATH
     // 8. get_db_path falls back to default when no custom config
     // Combined into one test to avoid env var race between parallel tests
     #[test]
@@ -1554,16 +1786,16 @@ mod tests {
         static ENV_LOCK: Mutex<()> = Mutex::new(());
         let _guard = ENV_LOCK.lock().unwrap();
 
-        let custom_path = env::temp_dir().join("rtk_test_custom.db");
-        env::set_var("RTK_DB_PATH", &custom_path);
+        let custom_path = env::temp_dir().join("obliterate_test_custom.db");
+        env::set_var("OBLITERATE_DB_PATH", &custom_path);
         let db_path = get_db_path().expect("Failed to get db path");
         assert_eq!(db_path, custom_path);
 
-        env::remove_var("RTK_DB_PATH");
+        env::remove_var("OBLITERATE_DB_PATH");
         let db_path = get_db_path().expect("Failed to get db path");
         assert!(
-            db_path.ends_with("rtk/history.db"),
-            "expected default path ending with rtk/history.db, got: {}",
+            db_path.ends_with("obliterate/history.db"),
+            "expected default path ending with obliterate/history.db, got: {}",
             db_path.display()
         );
     }
@@ -1656,7 +1888,7 @@ mod tests {
         tracker
             .record(
                 "git status",
-                &format!("rtk git status reset_test_{}", pid),
+                &format!("obliterate git status reset_test_{}", pid),
                 100,
                 20,
                 50,

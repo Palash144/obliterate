@@ -39,7 +39,7 @@ fn git_cmd(global_args: &[String]) -> Command {
 
 /// Create a git Command for internal parsing that must be locale-stable.
 ///
-/// We only use this for non-user-facing parses where RTK depends on git's
+/// We only use this for non-user-facing parses where OBLITERATE depends on git's
 /// English status phrases. User-visible passthrough output keeps the user's
 /// locale.
 fn git_cmd_c_locale(global_args: &[String]) -> Command {
@@ -106,8 +106,8 @@ pub fn run(
 ///
 /// clap's `trailing_var_arg = true` silently drops `--` when it appears as the
 /// first positional argument (before any other positional).  This means:
-///   `rtk git diff -- file` → args = ["file"]   (clap ate `--`)
-///   `rtk git diff HEAD -- file` → args = ["HEAD", "--", "file"]  (preserved)
+///   `obliterate git diff -- file` → args = ["file"]   (clap ate `--`)
+///   `obliterate git diff HEAD -- file` → args = ["HEAD", "--", "file"]  (preserved)
 ///
 /// Without the `--` separator git may treat an unambiguous path as a revision and
 /// emit "fatal: ambiguous argument".  We re-insert `--` before the first path-like
@@ -177,7 +177,7 @@ fn run_diff(
         .iter()
         .any(|arg| arg == "--stat" || arg == "--numstat" || arg == "--shortstat");
 
-    // Check if user wants compact diff (default RTK behavior)
+    // Check if user wants compact diff (default OBLITERATE behavior)
     let wants_compact = !args.iter().any(|arg| arg == "--no-compact");
 
     if wants_stat || !wants_compact {
@@ -186,7 +186,7 @@ fn run_diff(
         cmd.arg("diff");
         for arg in args {
             if arg == "--no-compact" {
-                continue; // RTK flag, not a git flag
+                continue; // OBLITERATE flag, not a git flag
             }
             cmd.arg(arg);
         }
@@ -202,7 +202,7 @@ fn run_diff(
 
         timer.track(
             &format!("git diff {}", args.join(" ")),
-            &format!("rtk git diff {} (passthrough)", args.join(" ")),
+            &format!("obliterate git diff {} (passthrough)", args.join(" ")),
             &result.stdout,
             &result.stdout,
         );
@@ -210,7 +210,7 @@ fn run_diff(
         return Ok(0);
     }
 
-    // Default RTK behavior: stat first, then compacted diff
+    // Default OBLITERATE behavior: stat first, then compacted diff
     let mut cmd = git_cmd(global_args);
     cmd.arg("diff").arg("--stat");
 
@@ -226,7 +226,7 @@ fn run_diff(
         }
         timer.track(
             &format!("git diff {}", args.join(" ")),
-            &format!("rtk git diff {}", args.join(" ")),
+            &format!("obliterate git diff {}", args.join(" ")),
             &result.stdout,
             &result.stdout,
         );
@@ -260,7 +260,7 @@ fn run_diff(
 
     timer.track(
         &format!("git diff {}", args.join(" ")),
-        &format!("rtk git diff {}", args.join(" ")),
+        &format!("obliterate git diff {}", args.join(" ")),
         &format!("{}\n{}", result.stdout, diff_result.stdout),
         &final_output,
     );
@@ -308,7 +308,7 @@ fn run_show(
 
         timer.track(
             &format!("git show {}", args.join(" ")),
-            &format!("rtk git show {} (passthrough)", args.join(" ")),
+            &format!("obliterate git show {} (passthrough)", args.join(" ")),
             &result.stdout,
             &result.stdout,
         );
@@ -372,7 +372,7 @@ fn run_show(
 
     timer.track(
         &format!("git show {}", args.join(" ")),
-        &format!("rtk git show {}", args.join(" ")),
+        &format!("obliterate git show {}", args.join(" ")),
         &raw_output,
         &final_output,
     );
@@ -469,7 +469,7 @@ pub(crate) fn compact_diff(diff: &str, max_lines: usize) -> String {
     }
 
     if was_truncated {
-        result.push("[full diff: rtk git diff --no-compact]".to_string());
+        result.push("[full diff: obliterate git diff --no-compact]".to_string());
     }
 
     result.join("\n")
@@ -498,7 +498,7 @@ fn run_log(
             || arg.starts_with("--max-count")
     });
 
-    // Apply RTK defaults only if user didn't specify them
+    // Apply OBLITERATE defaults only if user didn't specify them
     // Use %b (body) to preserve first line of commit body for agent context
     // (BREAKING CHANGE, Closes #xxx, design notes)
     if !has_format_flag {
@@ -545,13 +545,13 @@ fn run_log(
         eprintln!("Git log output:");
     }
 
-    // Post-process: truncate long messages, cap lines only if RTK set the default
+    // Post-process: truncate long messages, cap lines only if OBLITERATE set the default
     let filtered = filter_log_output(&result.stdout, limit, user_set_limit, has_format_flag);
     println!("{}", filtered);
 
     timer.track(
         &format!("git log {}", args.join(" ")),
-        &format!("rtk git log {}", args.join(" ")),
+        &format!("obliterate git log {}", args.join(" ")),
         &result.stdout,
         &filtered,
     );
@@ -613,7 +613,7 @@ pub(crate) fn filter_log_output(
     let truncate_width = if user_set_limit { 120 } else { 80 };
 
     // When user specified their own format (--oneline, --pretty, --format),
-    // RTK did not inject ---END--- markers. Use simple line-based truncation.
+    // OBLITERATE did not inject ---END--- markers. Use simple line-based truncation.
     if user_format {
         let lines: Vec<&str> = output.lines().collect();
         let max_lines = if user_set_limit { lines.len() } else { limit };
@@ -625,7 +625,7 @@ pub(crate) fn filter_log_output(
             .join("\n");
     }
 
-    // RTK injected format: split output into commit blocks separated by ---END---
+    // OBLITERATE injected format: split output into commit blocks separated by ---END---
     let commits: Vec<&str> = output.split("---END---").collect();
     let max_commits = if user_set_limit { commits.len() } else { limit };
 
@@ -789,7 +789,7 @@ fn detect_status_state(line: &str) -> Option<GitStatusState> {
 /// editing a commit while rebasing ...".
 ///
 /// This helper walks the plain-status output we already capture for tracking
-/// and emits a compact, RTK-style summary rather than dumping git's full prose.
+/// and emits a compact, OBLITERATE-style summary rather than dumping git's full prose.
 /// Returns `None` when no state is in progress.
 fn extract_state_header(raw: &str) -> Option<String> {
     // Headers of the file-change blocks — everything relevant to state appears
@@ -885,7 +885,7 @@ fn run_status(args: &[String], verbose: u8, global_args: &[String]) -> Result<i3
             }
             timer.track(
                 &format!("git status {}", args.join(" ")),
-                &format!("rtk git status {}", args.join(" ")),
+                &format!("obliterate git status {}", args.join(" ")),
                 &result.stdout,
                 &result.stdout,
             );
@@ -902,7 +902,7 @@ fn run_status(args: &[String], verbose: u8, global_args: &[String]) -> Result<i3
 
         timer.track(
             &format!("git status {}", args.join(" ")),
-            &format!("rtk git status {}", args.join(" ")),
+            &format!("obliterate git status {}", args.join(" ")),
             &result.stdout,
             &filtered,
         );
@@ -928,12 +928,12 @@ fn run_status(args: &[String], verbose: u8, global_args: &[String]) -> Result<i3
         } else {
             format!("git status {}", args.join(" "))
         };
-        let rtk_cmd = if args.is_empty() {
-            "rtk git status".to_string()
+        let obliterate_cmd = if args.is_empty() {
+            "obliterate git status".to_string()
         } else {
-            format!("rtk git status {}", args.join(" "))
+            format!("obliterate git status {}", args.join(" "))
         };
-        timer.track(&original_cmd, &rtk_cmd, &raw_output, &message);
+        timer.track(&original_cmd, &obliterate_cmd, &raw_output, &message);
         return Ok(result.exit_code);
     }
 
@@ -957,13 +957,13 @@ fn run_status(args: &[String], verbose: u8, global_args: &[String]) -> Result<i3
     } else {
         format!("git status {}", args.join(" "))
     };
-    let rtk_cmd = if args.is_empty() {
-        "rtk git status".to_string()
+    let obliterate_cmd = if args.is_empty() {
+        "obliterate git status".to_string()
     } else {
-        format!("rtk git status {}", args.join(" "))
+        format!("obliterate git status {}", args.join(" "))
     };
 
-    timer.track(&original_cmd, &rtk_cmd, &raw_output, &final_output);
+    timer.track(&original_cmd, &obliterate_cmd, &raw_output, &final_output);
 
     Ok(0)
 }
@@ -1018,7 +1018,7 @@ fn run_add(args: &[String], verbose: u8, global_args: &[String]) -> Result<i32> 
 
         timer.track(
             &format!("git add {}", args.join(" ")),
-            &format!("rtk git add {}", args.join(" ")),
+            &format!("obliterate git add {}", args.join(" ")),
             &raw_output,
             &compact,
         );
@@ -1083,12 +1083,12 @@ fn run_commit(args: &[String], verbose: u8, global_args: &[String]) -> Result<i3
 
         println!("{}", compact);
 
-        timer.track(&original_cmd, "rtk git commit", &raw_output, &compact);
+        timer.track(&original_cmd, "obliterate git commit", &raw_output, &compact);
     } else if stderr.contains("nothing to commit") || stdout.contains("nothing to commit") {
         println!("ok (nothing to commit)");
         timer.track(
             &original_cmd,
-            "rtk git commit",
+            "obliterate git commit",
             &raw_output,
             "ok (nothing to commit)",
         );
@@ -1099,7 +1099,7 @@ fn run_commit(args: &[String], verbose: u8, global_args: &[String]) -> Result<i3
         if !stdout.trim().is_empty() {
             eprint!("{}", stdout);
         }
-        timer.track(&original_cmd, "rtk git commit", &raw_output, &raw_output);
+        timer.track(&original_cmd, "obliterate git commit", &raw_output, &raw_output);
         return Ok(exit_code);
     }
 
@@ -1186,7 +1186,7 @@ fn run_push(args: &[String], verbose: u8, global_args: &[String]) -> Result<i32>
 
     timer.track(
         &cmd_label,
-        &format!("rtk {}", cmd_label),
+        &format!("obliterate {}", cmd_label),
         &result.raw,
         &result.filtered,
     );
@@ -1261,7 +1261,7 @@ fn run_pull(args: &[String], verbose: u8, global_args: &[String]) -> Result<i32>
 
         timer.track(
             &format!("git pull {}", args.join(" ")),
-            &format!("rtk git pull {}", args.join(" ")),
+            &format!("obliterate git pull {}", args.join(" ")),
             &raw_output,
             &compact,
         );
@@ -1339,7 +1339,7 @@ fn run_branch(args: &[String], verbose: u8, global_args: &[String]) -> Result<i3
         let trimmed = result.stdout.trim();
         timer.track(
             &format!("git branch {}", args.join(" ")),
-            &format!("rtk git branch {}", args.join(" ")),
+            &format!("obliterate git branch {}", args.join(" ")),
             &combined,
             trimmed,
         );
@@ -1370,7 +1370,7 @@ fn run_branch(args: &[String], verbose: u8, global_args: &[String]) -> Result<i3
 
         timer.track(
             &format!("git branch {}", args.join(" ")),
-            &format!("rtk git branch {}", args.join(" ")),
+            &format!("obliterate git branch {}", args.join(" ")),
             &combined,
             msg,
         );
@@ -1409,7 +1409,7 @@ fn run_branch(args: &[String], verbose: u8, global_args: &[String]) -> Result<i3
         }
         timer.track(
             &format!("git branch {}", args.join(" ")),
-            &format!("rtk git branch {}", args.join(" ")),
+            &format!("obliterate git branch {}", args.join(" ")),
             &result.stdout,
             &result.stdout,
         );
@@ -1421,7 +1421,7 @@ fn run_branch(args: &[String], verbose: u8, global_args: &[String]) -> Result<i3
 
     timer.track(
         &format!("git branch {}", args.join(" ")),
-        &format!("rtk git branch {}", args.join(" ")),
+        &format!("obliterate git branch {}", args.join(" ")),
         &result.stdout,
         &filtered,
     );
@@ -1528,7 +1528,7 @@ fn run_fetch(args: &[String], verbose: u8, global_args: &[String]) -> Result<i32
     };
 
     println!("{}", msg);
-    timer.track("git fetch", "rtk git fetch", &raw, &msg);
+    timer.track("git fetch", "obliterate git fetch", &raw, &msg);
 
     Ok(0)
 }
@@ -1574,7 +1574,7 @@ fn run_stash(
             if result.stdout.trim().is_empty() {
                 let msg = "No stashes";
                 println!("{}", msg);
-                timer.track("git stash list", "rtk git stash list", &result.stdout, msg);
+                timer.track("git stash list", "obliterate git stash list", &result.stdout, msg);
                 return Ok(0);
             }
 
@@ -1582,7 +1582,7 @@ fn run_stash(
             println!("{}", filtered);
             timer.track(
                 "git stash list",
-                "rtk git stash list",
+                "obliterate git stash list",
                 &result.stdout,
                 &filtered,
             );
@@ -1607,7 +1607,7 @@ fn run_stash(
 
             timer.track(
                 "git stash show",
-                "rtk git stash show",
+                "obliterate git stash show",
                 &result.stdout,
                 &filtered,
             );
@@ -1637,7 +1637,7 @@ fn run_stash(
 
             timer.track(
                 &format!("git stash {}", sub),
-                &format!("rtk git stash {}", sub),
+                &format!("obliterate git stash {}", sub),
                 &combined,
                 &msg,
             );
@@ -1679,7 +1679,7 @@ fn run_stash(
 
             timer.track(
                 &format!("git stash {}", sub),
-                &format!("rtk git stash {}", sub),
+                &format!("obliterate git stash {}", sub),
                 &combined,
                 &msg,
             );
@@ -1739,7 +1739,7 @@ fn run_worktree(args: &[String], verbose: u8, global_args: &[String]) -> Result<
 
         timer.track(
             &format!("git worktree {}", args.join(" ")),
-            &format!("rtk git worktree {}", args.join(" ")),
+            &format!("obliterate git worktree {}", args.join(" ")),
             &combined,
             msg,
         );
@@ -1765,7 +1765,7 @@ fn run_worktree(args: &[String], verbose: u8, global_args: &[String]) -> Result<
     println!("{}", filtered);
     timer.track(
         "git worktree list",
-        "rtk git worktree",
+        "obliterate git worktree",
         &result.stdout,
         &filtered,
     );
@@ -1815,7 +1815,7 @@ pub fn run_passthrough(args: &[OsString], global_args: &[String], verbose: u8) -
     let args_str = tracking::args_display(args);
     timer.track_passthrough(
         &format!("git {}", args_str),
-        &format!("rtk git {} (passthrough)", args_str),
+        &format!("obliterate git {} (passthrough)", args_str),
     );
 
     if !status.success() {
@@ -2094,7 +2094,7 @@ mod tests {
     }
 
     /// Branch name with `/` that does NOT exist as a file → no injection.
-    /// Regression for issue #1431: `rtk git diff feature/user-auth` must not inject `--`.
+    /// Regression for issue #1431: `obliterate git diff feature/user-auth` must not inject `--`.
     #[test]
     fn test_normalize_diff_args_no_injection_for_branch_with_slash() {
         let args = vec!["feature/user-auth".to_string()];
@@ -2106,7 +2106,7 @@ mod tests {
     }
 
     /// Range syntax with `/` → no injection.
-    /// Regression: `rtk git diff main...feature/user-auth` produced no output.
+    /// Regression: `obliterate git diff main...feature/user-auth` produced no output.
     #[test]
     fn test_normalize_diff_args_no_injection_for_range_with_slash() {
         let args = vec!["main...feature/user-auth".to_string()];
@@ -2119,7 +2119,7 @@ mod tests {
 
     /// Bare word that happens to exist as a file on disk → still no injection.
     /// A file named "main" must not cause `--` to be injected when the user
-    /// intends `rtk git diff main` as a branch comparison.
+    /// intends `obliterate git diff main` as a branch comparison.
     #[test]
     fn test_normalize_diff_args_no_injection_for_bare_word_even_if_file_exists() {
         let args = vec!["main".to_string()];
@@ -2593,7 +2593,7 @@ no changes added to commit (use "git add" and/or "git commit -a")
     #[test]
     #[ignore] // Integration test: requires git repo
     fn test_branch_creation_not_swallowed() {
-        let branch = "test-rtk-create-branch-regression";
+        let branch = "test-obliterate-create-branch-regression";
         // Create branch via run_branch
         run_branch(&[branch.to_string()], 0, &[]).expect("run_branch should succeed");
         // Verify it exists
@@ -2615,7 +2615,7 @@ no changes added to commit (use "git add" and/or "git commit -a")
     #[test]
     #[ignore] // Integration test: requires git repo
     fn test_branch_creation_from_commit() {
-        let branch = "test-rtk-create-from-commit";
+        let branch = "test-obliterate-create-from-commit";
         run_branch(&[branch.to_string(), "HEAD".to_string()], 0, &[])
             .expect("run_branch with start-point should succeed");
         let output = Command::new("git")
@@ -2697,15 +2697,15 @@ no changes added to commit (use "git add" and/or "git commit -a")
     #[test]
     #[ignore] // Requires `cargo build` first — run with `cargo test --ignored`
     fn test_git_status_not_a_repo_exits_nonzero() {
-        // Run rtk git status in a directory that is not a git repo
-        let tmp = std::env::temp_dir().join("rtk_test_not_a_repo");
+        // Run obliterate git status in a directory that is not a git repo
+        let tmp = std::env::temp_dir().join("obliterate_test_not_a_repo");
         let _ = std::fs::create_dir_all(&tmp);
 
         // Build the path to the test binary
         let bin_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("target")
             .join("debug")
-            .join("rtk");
+            .join("obliterate");
         assert!(
             bin_path.exists(),
             "Debug binary not found at {:?} — run `cargo build` first",
@@ -2715,7 +2715,7 @@ no changes added to commit (use "git add" and/or "git commit -a")
             .args(["git", "status"])
             .current_dir(&tmp)
             .output()
-            .expect("Failed to run rtk");
+            .expect("Failed to run obliterate");
 
         // Should exit with non-zero (128 from git)
         assert!(
@@ -2777,7 +2777,7 @@ no changes added to commit (use "git add" and/or "git commit -a")
         }
         let result = compact_diff(&diff, 500);
         assert!(
-            result.contains("[full diff: rtk git diff --no-compact]"),
+            result.contains("[full diff: obliterate git diff --no-compact]"),
             "Expected recovery hint when hunk is truncated, got:\n{}",
             result
         );

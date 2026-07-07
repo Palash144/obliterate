@@ -1,17 +1,17 @@
 import type { Plugin } from "@opencode-ai/plugin"
 
-// RTK OpenCode plugin — rewrites commands to use rtk for token savings.
-// Requires: rtk >= 0.23.0 in PATH.
+// Obliterate OpenCode plugin — rewrites commands to use obliterate for token savings.
+// Requires: obliterate >= 0.23.0 in PATH.
 //
 // This is a thin delegating plugin: all rewrite logic lives in `obliterate rewrite`,
 // which is the single source of truth (src/discover/registry.rs).
 // To add or change rewrite rules, edit the Rust registry — not this file.
 
-export const RtkOpenCodePlugin: Plugin = async ({ $ }) => {
+export const ObliterateOpenCodePlugin: Plugin = async ({ $ }) => {
   try {
     await $`which obliterate`.quiet()
   } catch {
-    console.warn("[rtk] rtk binary not found in PATH — plugin disabled")
+    console.warn("[obliterate] obliterate binary not found in PATH — plugin disabled")
     return {}
   }
 
@@ -32,7 +32,7 @@ export const RtkOpenCodePlugin: Plugin = async ({ $ }) => {
           ;(args as Record<string, unknown>).command = rewritten
         }
       } catch {
-        // rtk rewrite failed — pass through unchanged
+        // obliterate rewrite failed — pass through unchanged
       }
     },
   }

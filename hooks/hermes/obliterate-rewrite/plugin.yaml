@@ -1,0 +1,8 @@
+name: obliterate-rewrite
+version: "0.1.0"
+description: Rewrite Hermes terminal commands through Obliterate before execution.
+author: Obliterate Contributors
+hooks:
+  - pre_tool_call
+provides_hooks:
+  - pre_tool_call

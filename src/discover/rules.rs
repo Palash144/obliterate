@@ -1,19 +1,19 @@
-use super::report::RtkStatus;
+use super::report::ObliterateStatus;
 
-pub struct RtkRule {
+pub struct ObliterateRule {
     pub pattern: &'static str,
-    pub rtk_cmd: &'static str,
+    pub obliterate_cmd: &'static str,
     pub rewrite_prefixes: &'static [&'static str],
     pub category: &'static str,
     pub savings_pct: f64,
     pub subcmd_savings: &'static [(&'static str, f64)],
-    pub subcmd_status: &'static [(&'static str, RtkStatus)],
+    pub subcmd_status: &'static [(&'static str, ObliterateStatus)],
 }
 
-pub const RULES: &[RtkRule] = &[
-    RtkRule {
+pub const RULES: &[ObliterateRule] = &[
+    ObliterateRule {
         pattern: r"^(?:git|yadm)\s+(?:-[Cc]\s+\S+\s+)*(status|log|diff|show|add|commit|push|pull|branch|fetch|stash|worktree)",
-        rtk_cmd: "obliterate git",
+        obliterate_cmd: "obliterate git",
         rewrite_prefixes: &["git", "yadm"],
         category: "Git",
         savings_pct: 70.0,
@@ -25,99 +25,99 @@ pub const RULES: &[RtkRule] = &[
         ],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^gh\s+(pr|issue|run|repo|api|release)",
-        rtk_cmd: "obliterate gh",
+        obliterate_cmd: "obliterate gh",
         rewrite_prefixes: &["gh"],
         category: "GitHub",
         savings_pct: 82.0,
         subcmd_savings: &[("pr", 87.0), ("run", 82.0), ("issue", 80.0)],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^glab\s+(mr|issue|ci|pipeline|api|release)",
-        rtk_cmd: "obliterate glab",
+        obliterate_cmd: "obliterate glab",
         rewrite_prefixes: &["glab"],
         category: "GitLab",
         savings_pct: 82.0,
         subcmd_savings: &[("mr", 87.0), ("ci", 82.0), ("issue", 80.0)],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^cargo\s+(build|test|clippy|check|fmt|install)",
-        rtk_cmd: "obliterate cargo",
+        obliterate_cmd: "obliterate cargo",
         rewrite_prefixes: &["cargo"],
         category: "Cargo",
         savings_pct: 80.0,
         subcmd_savings: &[("test", 90.0), ("check", 80.0)],
-        subcmd_status: &[("fmt", RtkStatus::Passthrough)],
+        subcmd_status: &[("fmt", ObliterateStatus::Passthrough)],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^pnpm\s+(exec|i|install|list|ls|outdated|run|run-script)",
-        rtk_cmd: "obliterate pnpm",
+        obliterate_cmd: "obliterate pnpm",
         rewrite_prefixes: &["pnpm"],
         category: "PackageManager",
         savings_pct: 80.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^npm\s+(exec|run|run-script|rum|urn|x)(\s|$)",
-        rtk_cmd: "obliterate npm",
+        obliterate_cmd: "obliterate npm",
         rewrite_prefixes: &["npm"],
         category: "PackageManager",
         savings_pct: 70.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^npx\s+",
-        rtk_cmd: "obliterate npx",
+        obliterate_cmd: "obliterate npx",
         rewrite_prefixes: &["npx"],
         category: "PackageManager",
         savings_pct: 70.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^(cat|head|tail)\s+",
-        rtk_cmd: "obliterate read",
+        obliterate_cmd: "obliterate read",
         rewrite_prefixes: &["cat", "head", "tail"],
         category: "Files",
         savings_pct: 60.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^(rg|grep)\s+",
-        rtk_cmd: "obliterate grep",
+        obliterate_cmd: "obliterate grep",
         rewrite_prefixes: &["rg", "grep"],
         category: "Files",
         savings_pct: 75.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^ls(\s|$)",
-        rtk_cmd: "obliterate ls",
+        obliterate_cmd: "obliterate ls",
         rewrite_prefixes: &["ls"],
         category: "Files",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^find\s+",
-        rtk_cmd: "obliterate find",
+        obliterate_cmd: "obliterate find",
         rewrite_prefixes: &["find"],
         category: "Files",
         savings_pct: 70.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^((p?np(m|x)|p?npm\s+(exec|run|run-script)|npm\s+(rum|urn|x)|pnpm\s+dlx)\s+)?tsc(\s|$)",
-        rtk_cmd: "obliterate tsc",
+        obliterate_cmd: "obliterate tsc",
         rewrite_prefixes: &[
             "npm exec tsc",
             "npm rum tsc",
@@ -140,9 +140,9 @@ pub const RULES: &[RtkRule] = &[
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^((p?np(m|x)|p?npm\s+(exec|run|run-script)|npm\s+(rum|urn|x)|pnpm\s+dlx)\s+)?(biome|eslint|lint)(\s|$)",
-        rtk_cmd: "obliterate lint",
+        obliterate_cmd: "obliterate lint",
         rewrite_prefixes: &[
             "biome",
             "eslint",
@@ -191,9 +191,9 @@ pub const RULES: &[RtkRule] = &[
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^((p?np(m|x)|p?npm\s+(exec|run|run-script)|npm\s+(rum|urn|x)|pnpm\s+dlx)\s+)?prettier",
-        rtk_cmd: "obliterate prettier",
+        obliterate_cmd: "obliterate prettier",
         rewrite_prefixes: &[
             "npm exec prettier",
             "npm prettier",
@@ -216,9 +216,9 @@ pub const RULES: &[RtkRule] = &[
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^((p?np(m|x)|p?npm\s+(exec|run|run-script)|npm\s+(rum|urn|x)|pnpm\s+dlx)\s+)?next\s+build",
-        rtk_cmd: "obliterate next",
+        obliterate_cmd: "obliterate next",
         rewrite_prefixes: &[
             "next build",
             "npm exec next build",
@@ -241,9 +241,9 @@ pub const RULES: &[RtkRule] = &[
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^((p?np(m|x)|p?npm\s+(exec|run|run-script)|npm\s+(rum|urn|x)|pnpm\s+dlx)\s+)?jest(\s+run)?(\s|$)",
-        rtk_cmd: "obliterate jest",
+        obliterate_cmd: "obliterate jest",
         rewrite_prefixes: &[
             "jest run",
             "jest",
@@ -281,9 +281,9 @@ pub const RULES: &[RtkRule] = &[
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^((p?np(m|x)|p?npm\s+(exec|run|run-script)|npm\s+(rum|urn|x)|pnpm\s+dlx)\s+)?vitest(\s+run)?(\s|$)",
-        rtk_cmd: "obliterate vitest",
+        obliterate_cmd: "obliterate vitest",
         rewrite_prefixes: &[
             "npm exec vitest run",
             "npm exec vitest",
@@ -321,9 +321,9 @@ pub const RULES: &[RtkRule] = &[
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^((p?np(m|x)|p?npm\s+(exec|run|run-script)|npm\s+(rum|urn|x)|pnpm\s+dlx)\s+)?playwright",
-        rtk_cmd: "obliterate playwright",
+        obliterate_cmd: "obliterate playwright",
         rewrite_prefixes: &[
             "npm exec playwright",
             "npm playwright",
@@ -346,9 +346,9 @@ pub const RULES: &[RtkRule] = &[
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^((p?np(m|x)|p?npm\s+(exec|run|run-script)|npm\s+(rum|urn|x)|pnpm\s+dlx)\s+)?prisma",
-        rtk_cmd: "obliterate prisma",
+        obliterate_cmd: "obliterate prisma",
         rewrite_prefixes: &[
             "npm exec prisma",
             "npm prisma",
@@ -371,126 +371,126 @@ pub const RULES: &[RtkRule] = &[
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^docker\s+(ps|images|logs|run|exec|build|compose\s+(ps|logs|build))",
-        rtk_cmd: "obliterate docker",
+        obliterate_cmd: "obliterate docker",
         rewrite_prefixes: &["docker"],
         category: "Infra",
         savings_pct: 85.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^kubectl\s+(get|logs|describe|apply)",
-        rtk_cmd: "obliterate kubectl",
+        obliterate_cmd: "obliterate kubectl",
         rewrite_prefixes: &["kubectl"],
         category: "Infra",
         savings_pct: 85.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^tree(\s|$)",
-        rtk_cmd: "obliterate tree",
+        obliterate_cmd: "obliterate tree",
         rewrite_prefixes: &["tree"],
         category: "Files",
         savings_pct: 70.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^diff\s+",
-        rtk_cmd: "obliterate diff",
+        obliterate_cmd: "obliterate diff",
         rewrite_prefixes: &["diff"],
         category: "Files",
         savings_pct: 60.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^curl\s+",
-        rtk_cmd: "obliterate curl",
+        obliterate_cmd: "obliterate curl",
         rewrite_prefixes: &["curl"],
         category: "Network",
         savings_pct: 70.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^wget\s+",
-        rtk_cmd: "obliterate wget",
+        obliterate_cmd: "obliterate wget",
         rewrite_prefixes: &["wget"],
         category: "Network",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^(python3?\s+-m\s+)?mypy(\s|$)",
-        rtk_cmd: "obliterate mypy",
+        obliterate_cmd: "obliterate mypy",
         rewrite_prefixes: &["python3 -m mypy", "python -m mypy", "mypy"],
         category: "Build",
         savings_pct: 80.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^ruff\s+(check|format)",
-        rtk_cmd: "obliterate ruff",
+        obliterate_cmd: "obliterate ruff",
         rewrite_prefixes: &["ruff"],
         category: "Python",
         savings_pct: 80.0,
         subcmd_savings: &[("check", 80.0), ("format", 75.0)],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^(python[0-9.]*\s+-m\s+)?pytest(\s|$)",
-        rtk_cmd: "obliterate pytest",
+        obliterate_cmd: "obliterate pytest",
         rewrite_prefixes: &["python3 -m pytest", "python -m pytest", "pytest"],
         category: "Python",
         savings_pct: 90.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^(pip3?|uv\s+pip)\s+(list|outdated|install|show)",
-        rtk_cmd: "obliterate pip",
+        obliterate_cmd: "obliterate pip",
         rewrite_prefixes: &["pip3", "pip", "uv pip"],
         category: "Python",
         savings_pct: 75.0,
         subcmd_savings: &[("list", 75.0), ("outdated", 80.0)],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^go\s+(test|build|vet)",
-        rtk_cmd: "obliterate go",
+        obliterate_cmd: "obliterate go",
         rewrite_prefixes: &["go"],
         category: "Go",
         savings_pct: 85.0,
         subcmd_savings: &[("test", 90.0), ("build", 80.0), ("vet", 75.0)],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^(?:golangci-lint|golangci)\s+(run)(?:\s|$)",
-        rtk_cmd: "obliterate golangci-lint run",
+        obliterate_cmd: "obliterate golangci-lint run",
         rewrite_prefixes: &["golangci-lint run", "golangci run"],
         category: "Go",
         savings_pct: 85.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^bundle\s+(install|update)\b",
-        rtk_cmd: "obliterate bundle",
+        obliterate_cmd: "obliterate bundle",
         rewrite_prefixes: &["bundle"],
         category: "Ruby",
         savings_pct: 70.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^(?:bundle\s+exec\s+)?(?:bin/)?(?:rake|rails)\s+test",
-        rtk_cmd: "obliterate rake",
+        obliterate_cmd: "obliterate rake",
         rewrite_prefixes: &[
             "bundle exec rails",
             "bundle exec rake",
@@ -503,27 +503,27 @@ pub const RULES: &[RtkRule] = &[
         subcmd_savings: &[("test", 90.0)],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^(?:bundle\s+exec\s+)?rspec(?:\s|$)",
-        rtk_cmd: "obliterate rspec",
+        obliterate_cmd: "obliterate rspec",
         rewrite_prefixes: &["bundle exec rspec", "bin/rspec", "rspec"],
         category: "Tests",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^(?:bundle\s+exec\s+)?rubocop(?:\s|$)",
-        rtk_cmd: "obliterate rubocop",
+        obliterate_cmd: "obliterate rubocop",
         rewrite_prefixes: &["bundle exec rubocop", "rubocop"],
         category: "Build",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^aws\s+",
-        rtk_cmd: "obliterate aws",
+        obliterate_cmd: "obliterate aws",
         rewrite_prefixes: &["aws"],
         category: "Infra",
         savings_pct: 80.0,
@@ -545,333 +545,333 @@ pub const RULES: &[RtkRule] = &[
         ],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^psql(\s|$)",
-        rtk_cmd: "obliterate psql",
+        obliterate_cmd: "obliterate psql",
         rewrite_prefixes: &["psql"],
         category: "Infra",
         savings_pct: 75.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^ansible-playbook\b",
-        rtk_cmd: "obliterate ansible-playbook",
+        obliterate_cmd: "obliterate ansible-playbook",
         rewrite_prefixes: &["ansible-playbook"],
         category: "Infra",
         savings_pct: 70.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^brew\s+(install|upgrade)\b",
-        rtk_cmd: "obliterate brew",
+        obliterate_cmd: "obliterate brew",
         rewrite_prefixes: &["brew"],
         category: "PackageManager",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^composer\s+(install|update|require)\b",
-        rtk_cmd: "obliterate composer",
+        obliterate_cmd: "obliterate composer",
         rewrite_prefixes: &["composer"],
         category: "PackageManager",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^df(\s|$)",
-        rtk_cmd: "obliterate df",
+        obliterate_cmd: "obliterate df",
         rewrite_prefixes: &["df"],
         category: "System",
         savings_pct: 60.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^dotnet\s+build\b",
-        rtk_cmd: "obliterate dotnet",
+        obliterate_cmd: "obliterate dotnet",
         rewrite_prefixes: &["dotnet"],
         category: "Build",
         savings_pct: 70.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^du\b",
-        rtk_cmd: "obliterate du",
+        obliterate_cmd: "obliterate du",
         rewrite_prefixes: &["du"],
         category: "System",
         savings_pct: 60.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^fail2ban-client\b",
-        rtk_cmd: "obliterate fail2ban-client",
+        obliterate_cmd: "obliterate fail2ban-client",
         rewrite_prefixes: &["fail2ban-client"],
         category: "Infra",
         savings_pct: 60.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^gcloud\b",
-        rtk_cmd: "obliterate gcloud",
+        obliterate_cmd: "obliterate gcloud",
         rewrite_prefixes: &["gcloud"],
         category: "Infra",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^(?:\./gradlew|gradlew\.bat|gradlew|gradle)(?:\s+(test|build|clean|assemble\w*|install\w*|check|lint\w*|dependencies))?(\s|$)",
-        rtk_cmd: "obliterate gradlew",
+        obliterate_cmd: "obliterate gradlew",
         rewrite_prefixes: &["./gradlew", "gradlew.bat", "gradlew", "gradle"],
         category: "Build",
         savings_pct: 75.0,
         subcmd_savings: &[("test", 90.0), ("build", 80.0), ("check", 80.0)],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^hadolint\b",
-        rtk_cmd: "obliterate hadolint",
+        obliterate_cmd: "obliterate hadolint",
         rewrite_prefixes: &["hadolint"],
         category: "Build",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^helm\b",
-        rtk_cmd: "obliterate helm",
+        obliterate_cmd: "obliterate helm",
         rewrite_prefixes: &["helm"],
         category: "Infra",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^iptables\b",
-        rtk_cmd: "obliterate iptables",
+        obliterate_cmd: "obliterate iptables",
         rewrite_prefixes: &["iptables"],
         category: "Infra",
         savings_pct: 60.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^make\b",
-        rtk_cmd: "obliterate make",
+        obliterate_cmd: "obliterate make",
         rewrite_prefixes: &["make"],
         category: "Build",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^markdownlint\b",
-        rtk_cmd: "obliterate markdownlint",
+        obliterate_cmd: "obliterate markdownlint",
         rewrite_prefixes: &["markdownlint"],
         category: "Build",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^mix\s+(compile|format)(\s|$)",
-        rtk_cmd: "obliterate mix",
+        obliterate_cmd: "obliterate mix",
         rewrite_prefixes: &["mix"],
         category: "Build",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
-        pattern: r"^mvn\s+(compile|package|clean|install)\b",
-        rtk_cmd: "obliterate mvn",
+    ObliterateRule {
+        pattern: r"^mvn\s+(clean|compile|test|package|install|verify|checkstyle(?::check)?|spotbugs(?::check)?|dependency:tree)\b",
+        obliterate_cmd: "obliterate mvn",
         rewrite_prefixes: &["mvn"],
         category: "Build",
         savings_pct: 70.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^ping\b",
-        rtk_cmd: "obliterate ping",
+        obliterate_cmd: "obliterate ping",
         rewrite_prefixes: &["ping"],
         category: "Network",
         savings_pct: 60.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^pio\s+run",
-        rtk_cmd: "obliterate pio",
+        obliterate_cmd: "obliterate pio",
         rewrite_prefixes: &["pio"],
         category: "Build",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^poetry\s+(install|lock|update)\b",
-        rtk_cmd: "obliterate poetry",
+        obliterate_cmd: "obliterate poetry",
         rewrite_prefixes: &["poetry"],
         category: "Python",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^pre-commit\b",
-        rtk_cmd: "obliterate pre-commit",
+        obliterate_cmd: "obliterate pre-commit",
         rewrite_prefixes: &["pre-commit"],
         category: "Build",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^ps(\s|$)",
-        rtk_cmd: "obliterate ps",
+        obliterate_cmd: "obliterate ps",
         rewrite_prefixes: &["ps"],
         category: "System",
         savings_pct: 60.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^quarto\s+render",
-        rtk_cmd: "obliterate quarto",
+        obliterate_cmd: "obliterate quarto",
         rewrite_prefixes: &["quarto"],
         category: "Build",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^rsync\b",
-        rtk_cmd: "obliterate rsync",
+        obliterate_cmd: "obliterate rsync",
         rewrite_prefixes: &["rsync"],
         category: "Network",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^shellcheck\b",
-        rtk_cmd: "obliterate shellcheck",
+        obliterate_cmd: "obliterate shellcheck",
         rewrite_prefixes: &["shellcheck"],
         category: "Build",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^shopify\s+theme\s+(push|pull)",
-        rtk_cmd: "obliterate shopify",
+        obliterate_cmd: "obliterate shopify",
         rewrite_prefixes: &["shopify"],
         category: "Build",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^sops\b",
-        rtk_cmd: "obliterate sops",
+        obliterate_cmd: "obliterate sops",
         rewrite_prefixes: &["sops"],
         category: "Infra",
         savings_pct: 60.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^swift\s+(build|test)\b",
-        rtk_cmd: "obliterate swift",
+        obliterate_cmd: "obliterate swift",
         rewrite_prefixes: &["swift"],
         category: "Build",
         savings_pct: 65.0,
         subcmd_savings: &[("test", 90.0)],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^systemctl\s+status\b",
-        rtk_cmd: "obliterate systemctl",
+        obliterate_cmd: "obliterate systemctl",
         rewrite_prefixes: &["systemctl"],
         category: "System",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^terraform\s+plan",
-        rtk_cmd: "obliterate terraform",
+        obliterate_cmd: "obliterate terraform",
         rewrite_prefixes: &["terraform"],
         category: "Infra",
         savings_pct: 70.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^tofu\s+(fmt|init|plan|validate)(\s|$)",
-        rtk_cmd: "obliterate tofu",
+        obliterate_cmd: "obliterate tofu",
         rewrite_prefixes: &["tofu"],
         category: "Infra",
         savings_pct: 70.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^trunk\s+build",
-        rtk_cmd: "obliterate trunk",
+        obliterate_cmd: "obliterate trunk",
         rewrite_prefixes: &["trunk"],
         category: "Build",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^uv\s+(sync|pip\s+install)\b",
-        rtk_cmd: "obliterate uv",
+        obliterate_cmd: "obliterate uv",
         rewrite_prefixes: &["uv"],
         category: "Python",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^yamllint\b",
-        rtk_cmd: "obliterate yamllint",
+        obliterate_cmd: "obliterate yamllint",
         rewrite_prefixes: &["yamllint"],
         category: "Build",
         savings_pct: 65.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^wc(\s|$)",
-        rtk_cmd: "obliterate wc",
+        obliterate_cmd: "obliterate wc",
         rewrite_prefixes: &["wc"],
         category: "Files",
         savings_pct: 60.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^gt\s+",
-        rtk_cmd: "obliterate gt",
+        obliterate_cmd: "obliterate gt",
         rewrite_prefixes: &["gt"],
         category: "Git",
         savings_pct: 70.0,
         subcmd_savings: &[],
         subcmd_status: &[],
     },
-    RtkRule {
+    ObliterateRule {
         pattern: r"^liquibase(?:\s|$)",
-        rtk_cmd: "obliterate liquibase",
+        obliterate_cmd: "obliterate liquibase",
         rewrite_prefixes: &["liquibase"],
         category: "Infra",
         savings_pct: 65.0,
@@ -914,7 +914,7 @@ pub const IGNORED_PREFIXES: &[&str] = &[
     "python -c",
     "node -e",
     "ruby -e",
-    "rtk ",
+    "obliterate ",
     "pwd",
     "bash ",
     "sh ",

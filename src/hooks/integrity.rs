@@ -1,6 +1,6 @@
 //! Detects if someone tampered with the installed hook file.
 //!
-//! RTK installs a PreToolUse hook (`rtk-rewrite.sh`) that auto-approves
+//! Obliterate installs a PreToolUse hook (`obliterate-rewrite.sh`) that auto-approves
 //! rewritten commands with `permissionDecision: "allow"`. Because this
 //! hook bypasses Claude Code's permission prompts, any unauthorized
 //! modification represents a command injection vector.
@@ -10,7 +10,7 @@
 //! - Runtime verification before command execution
 //! - Manual verification via `obliterate verify`
 //!
-//! Reference: SA-2025-RTK-001 (Finding F-01)
+//! Reference: SA-2025-Obliterate-001 (Finding F-01)
 
 use super::constants::{CLAUDE_DIR, HOOKS_SUBDIR, REWRITE_HOOK_FILE};
 use anyhow::{Context, Result};
@@ -19,7 +19,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Filename for the stored hash (dotfile alongside hook)
-const HASH_FILENAME: &str = ".rtk-hook.sha256";
+const HASH_FILENAME: &str = ".obliterate-hook.sha256";
 
 /// Result of hook integrity verification
 #[derive(Debug, PartialEq)]
@@ -30,7 +30,7 @@ pub enum IntegrityStatus {
     Tampered { expected: String, actual: String },
     /// Hook exists but no stored hash (installed before integrity checks)
     NoBaseline,
-    /// Neither hook nor hash file exist (RTK not installed)
+    /// Neither hook nor hash file exist (Obliterate not installed)
     NotInstalled,
     /// Hash file exists but hook was deleted
     OrphanedHash,
@@ -62,7 +62,7 @@ pub fn hash_path_for(hook_path: &Path) -> PathBuf {
 ///
 /// Format is compatible with `sha256sum -c`:
 /// ```text
-/// <hex_hash>  rtk-rewrite.sh
+/// <hex_hash>  obliterate-rewrite.sh
 /// ```
 ///
 /// The hash file is set to read-only (0o444) as a speed bump
@@ -186,7 +186,7 @@ fn read_stored_hash(path: &Path) -> Result<String> {
     Ok(hash.to_string())
 }
 
-/// Resolve the default hook path (~/.claude/hooks/rtk-rewrite.sh)
+/// Resolve the default hook path (~/.claude/hooks/obliterate-rewrite.sh)
 pub fn resolve_hook_path() -> Result<PathBuf> {
     dirs::home_dir()
         .map(|h| {
@@ -214,14 +214,14 @@ pub fn run_verify(verbose: u8) -> Result<()> {
         let settings_path = home.join(CLAUDE_DIR).join("settings.json");
         if settings_path.exists() {
             let content = fs::read_to_string(&settings_path).unwrap_or_default();
-            if content.contains("obliterate hook claude") || content.contains("rtk hook claude") {
+            if content.contains("obliterate hook claude") || content.contains("obliterate hook claude") {
                 println!("PASS  native binary hook registered in settings.json");
                 println!("      command: obliterate hook claude");
                 println!("      (no script file — integrity check not applicable)");
                 return Ok(());
             }
         }
-        println!("SKIP  RTK hook not installed");
+        println!("SKIP  Obliterate hook not installed");
         println!("      Run `obliterate init -g` to install.");
         return Ok(());
     }
@@ -242,7 +242,7 @@ pub fn run_verify(verbose: u8) -> Result<()> {
             eprintln!("  The hook file has been modified outside of `obliterate init`.");
             eprintln!("  This could indicate tampering or a manual edit.");
             eprintln!();
-            eprintln!("  To restore: rtk init -g --auto-patch");
+            eprintln!("  To restore: obliterate init -g --auto-patch");
             eprintln!("  To inspect: cat {}", hook_path.display());
             std::process::exit(1);
         }
@@ -252,7 +252,7 @@ pub fn run_verify(verbose: u8) -> Result<()> {
             println!("      Run `obliterate init -g` to establish baseline.");
         }
         IntegrityStatus::NotInstalled => {
-            println!("SKIP  RTK hook not installed");
+            println!("SKIP  Obliterate hook not installed");
             println!("      Run `obliterate init -g` to install.");
         }
         IntegrityStatus::OrphanedHash => {
@@ -271,7 +271,7 @@ pub fn run_verify(verbose: u8) -> Result<()> {
 /// - `Tampered`: print warning to stderr, exit 1
 /// - `OrphanedHash`: warn to stderr, continue
 ///
-/// When RTK uses native binary commands (no script file), integrity
+/// When Obliterate uses native binary commands (no script file), integrity
 /// checking is a no-op — there is no script to tamper with.
 ///
 /// No env-var bypass is provided — if the hook is legitimately modified,
@@ -294,7 +294,7 @@ pub fn runtime_check() -> Result<()> {
             // Silently skip to avoid noise for users who haven't re-run init
         }
         IntegrityStatus::Tampered { expected, actual } => {
-            eprintln!("rtk: hook integrity check FAILED");
+            eprintln!("obliterate: hook integrity check FAILED");
             eprintln!(
                 "  Expected hash: {}...",
                 expected.get(..16).unwrap_or(&expected)
@@ -304,15 +304,15 @@ pub fn runtime_check() -> Result<()> {
                 actual.get(..16).unwrap_or(&actual)
             );
             eprintln!();
-            eprintln!("  The hook at ~/.claude/hooks/rtk-rewrite.sh has been modified.");
-            eprintln!("  This may indicate tampering. RTK will not execute.");
+            eprintln!("  The hook at ~/.claude/hooks/obliterate-rewrite.sh has been modified.");
+            eprintln!("  This may indicate tampering. Obliterate will not execute.");
             eprintln!();
-            eprintln!("  To restore:  rtk init -g --auto-patch");
-            eprintln!("  To inspect:  rtk verify");
+            eprintln!("  To restore:  obliterate init -g --auto-patch");
+            eprintln!("  To inspect:  obliterate verify");
             std::process::exit(1);
         }
         IntegrityStatus::OrphanedHash => {
-            eprintln!("rtk: warning: hash file exists but hook is missing");
+            eprintln!("obliterate: warning: hash file exists but hook is missing");
             eprintln!("  Run `obliterate init -g` to reinstall.");
             // Don't block — hook is gone, nothing to exploit
         }
@@ -357,7 +357,7 @@ mod tests {
     #[test]
     fn test_store_and_verify_ok() {
         let temp = TempDir::new().unwrap();
-        let hook = temp.path().join("rtk-rewrite.sh");
+        let hook = temp.path().join("obliterate-rewrite.sh");
         fs::write(&hook, "#!/bin/bash\necho test\n").unwrap();
 
         store_hash(&hook).unwrap();
@@ -369,7 +369,7 @@ mod tests {
     #[test]
     fn test_verify_detects_tampering() {
         let temp = TempDir::new().unwrap();
-        let hook = temp.path().join("rtk-rewrite.sh");
+        let hook = temp.path().join("obliterate-rewrite.sh");
         fs::write(&hook, "#!/bin/bash\necho original\n").unwrap();
 
         store_hash(&hook).unwrap();
@@ -391,7 +391,7 @@ mod tests {
     #[test]
     fn test_verify_no_baseline() {
         let temp = TempDir::new().unwrap();
-        let hook = temp.path().join("rtk-rewrite.sh");
+        let hook = temp.path().join("obliterate-rewrite.sh");
         fs::write(&hook, "#!/bin/bash\necho test\n").unwrap();
 
         // No hash file stored
@@ -402,7 +402,7 @@ mod tests {
     #[test]
     fn test_verify_not_installed() {
         let temp = TempDir::new().unwrap();
-        let hook = temp.path().join("rtk-rewrite.sh");
+        let hook = temp.path().join("obliterate-rewrite.sh");
         // Don't create hook file
 
         let status = verify_hook_at(&hook).unwrap();
@@ -412,13 +412,13 @@ mod tests {
     #[test]
     fn test_verify_orphaned_hash() {
         let temp = TempDir::new().unwrap();
-        let hook = temp.path().join("rtk-rewrite.sh");
-        let hash_file = temp.path().join(".rtk-hook.sha256");
+        let hook = temp.path().join("obliterate-rewrite.sh");
+        let hash_file = temp.path().join(".obliterate-hook.sha256");
 
         // Create hash but no hook
         fs::write(
             &hash_file,
-            "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2  rtk-rewrite.sh\n",
+            "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2  obliterate-rewrite.sh\n",
         )
         .unwrap();
 
@@ -429,27 +429,27 @@ mod tests {
     #[test]
     fn test_store_hash_creates_sha256sum_format() {
         let temp = TempDir::new().unwrap();
-        let hook = temp.path().join("rtk-rewrite.sh");
+        let hook = temp.path().join("obliterate-rewrite.sh");
         fs::write(&hook, "test content").unwrap();
 
         store_hash(&hook).unwrap();
 
-        let hash_file = temp.path().join(".rtk-hook.sha256");
+        let hash_file = temp.path().join(".obliterate-hook.sha256");
         assert!(hash_file.exists());
 
         let content = fs::read_to_string(&hash_file).unwrap();
-        // Format: "<64 hex chars>  rtk-rewrite.sh\n"
-        assert!(content.ends_with("  rtk-rewrite.sh\n"));
+        // Format: "<64 hex chars>  obliterate-rewrite.sh\n"
+        assert!(content.ends_with("  obliterate-rewrite.sh\n"));
         let parts: Vec<&str> = content.trim().splitn(2, "  ").collect();
         assert_eq!(parts.len(), 2);
         assert_eq!(parts[0].len(), 64);
-        assert_eq!(parts[1], "rtk-rewrite.sh");
+        assert_eq!(parts[1], "obliterate-rewrite.sh");
     }
 
     #[test]
     fn test_store_hash_overwrites_existing() {
         let temp = TempDir::new().unwrap();
-        let hook = temp.path().join("rtk-rewrite.sh");
+        let hook = temp.path().join("obliterate-rewrite.sh");
 
         fs::write(&hook, "version 1").unwrap();
         store_hash(&hook).unwrap();
@@ -472,12 +472,12 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
 
         let temp = TempDir::new().unwrap();
-        let hook = temp.path().join("rtk-rewrite.sh");
+        let hook = temp.path().join("obliterate-rewrite.sh");
         fs::write(&hook, "test").unwrap();
 
         store_hash(&hook).unwrap();
 
-        let hash_file = temp.path().join(".rtk-hook.sha256");
+        let hash_file = temp.path().join(".obliterate-hook.sha256");
         let perms = fs::metadata(&hash_file).unwrap().permissions();
         assert_eq!(perms.mode() & 0o777, 0o444, "Hash file should be read-only");
     }
@@ -485,11 +485,11 @@ mod tests {
     #[test]
     fn test_remove_hash() {
         let temp = TempDir::new().unwrap();
-        let hook = temp.path().join("rtk-rewrite.sh");
+        let hook = temp.path().join("obliterate-rewrite.sh");
         fs::write(&hook, "test").unwrap();
 
         store_hash(&hook).unwrap();
-        let hash_file = temp.path().join(".rtk-hook.sha256");
+        let hash_file = temp.path().join(".obliterate-hook.sha256");
         assert!(hash_file.exists());
 
         let removed = remove_hash(&hook).unwrap();
@@ -500,7 +500,7 @@ mod tests {
     #[test]
     fn test_remove_hash_not_found() {
         let temp = TempDir::new().unwrap();
-        let hook = temp.path().join("rtk-rewrite.sh");
+        let hook = temp.path().join("obliterate-rewrite.sh");
 
         let removed = remove_hash(&hook).unwrap();
         assert!(!removed);
@@ -509,11 +509,11 @@ mod tests {
     #[test]
     fn test_invalid_hash_file_rejected() {
         let temp = TempDir::new().unwrap();
-        let hook = temp.path().join("rtk-rewrite.sh");
-        let hash_file = temp.path().join(".rtk-hook.sha256");
+        let hook = temp.path().join("obliterate-rewrite.sh");
+        let hash_file = temp.path().join(".obliterate-hook.sha256");
 
         fs::write(&hook, "test").unwrap();
-        fs::write(&hash_file, "not-a-valid-hash  rtk-rewrite.sh\n").unwrap();
+        fs::write(&hash_file, "not-a-valid-hash  obliterate-rewrite.sh\n").unwrap();
 
         let result = verify_hook_at(&hook);
         assert!(result.is_err(), "Should reject invalid hash format");
@@ -522,8 +522,8 @@ mod tests {
     #[test]
     fn test_hash_only_no_filename_rejected() {
         let temp = TempDir::new().unwrap();
-        let hook = temp.path().join("rtk-rewrite.sh");
-        let hash_file = temp.path().join(".rtk-hook.sha256");
+        let hook = temp.path().join("obliterate-rewrite.sh");
+        let hash_file = temp.path().join(".obliterate-hook.sha256");
 
         fs::write(&hook, "test").unwrap();
         // Hash with no two-space separator and filename
@@ -543,14 +543,14 @@ mod tests {
     #[test]
     fn test_wrong_separator_rejected() {
         let temp = TempDir::new().unwrap();
-        let hook = temp.path().join("rtk-rewrite.sh");
-        let hash_file = temp.path().join(".rtk-hook.sha256");
+        let hook = temp.path().join("obliterate-rewrite.sh");
+        let hash_file = temp.path().join(".obliterate-hook.sha256");
 
         fs::write(&hook, "test").unwrap();
         // Single space instead of two-space separator
         fs::write(
             &hash_file,
-            "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2 rtk-rewrite.sh\n",
+            "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2 obliterate-rewrite.sh\n",
         )
         .unwrap();
 
@@ -561,12 +561,12 @@ mod tests {
     #[test]
     fn test_hash_format_compatible_with_sha256sum() {
         let temp = TempDir::new().unwrap();
-        let hook = temp.path().join("rtk-rewrite.sh");
+        let hook = temp.path().join("obliterate-rewrite.sh");
         fs::write(&hook, "#!/bin/bash\necho hello\n").unwrap();
 
         store_hash(&hook).unwrap();
 
-        let hash_file = temp.path().join(".rtk-hook.sha256");
+        let hash_file = temp.path().join(".obliterate-hook.sha256");
         let content = fs::read_to_string(&hash_file).unwrap();
 
         // Should be parseable by sha256sum -c
@@ -574,6 +574,6 @@ mod tests {
         let parts: Vec<&str> = content.trim().splitn(2, "  ").collect();
         assert_eq!(parts.len(), 2);
         assert_eq!(parts[0].len(), 64);
-        assert_eq!(parts[1], "rtk-rewrite.sh");
+        assert_eq!(parts[1], "obliterate-rewrite.sh");
     }
 }

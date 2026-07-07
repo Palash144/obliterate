@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Test suite for rtk-rewrite.sh
+# Test suite for obliterate-rewrite.sh
 # Feeds mock JSON through the hook and verifies the rewritten commands.
 #
-# Usage: bash ~/.claude/hooks/test-rtk-rewrite.sh
+# Usage: bash ~/.claude/hooks/test-obliterate-rewrite.sh
 
-HOOK="${HOOK:-$HOME/.claude/hooks/rtk-rewrite.sh}"
+HOOK="${HOOK:-$HOME/.claude/hooks/obliterate-rewrite.sh}"
 PASS=0
 FAIL=0
 TOTAL=0
@@ -55,7 +55,7 @@ test_rewrite() {
 }
 
 echo "============================================"
-echo "  RTK Rewrite Hook Test Suite"
+echo "  Obliterate Rewrite Hook Test Suite"
 echo "============================================"
 echo ""
 
@@ -63,63 +63,63 @@ echo ""
 echo "--- Existing patterns (regression) ---"
 test_rewrite "git status" \
   "git status" \
-  "rtk git status"
+  "obliterate git status"
 
 test_rewrite "git log --oneline -10" \
   "git log --oneline -10" \
-  "rtk git log --oneline -10"
+  "obliterate git log --oneline -10"
 
 test_rewrite "git diff HEAD" \
   "git diff HEAD" \
-  "rtk git diff HEAD"
+  "obliterate git diff HEAD"
 
 test_rewrite "git show abc123" \
   "git show abc123" \
-  "rtk git show abc123"
+  "obliterate git show abc123"
 
 test_rewrite "git add ." \
   "git add ." \
-  "rtk git add ."
+  "obliterate git add ."
 
 test_rewrite "gh pr list" \
   "gh pr list" \
-  "rtk gh pr list"
+  "obliterate gh pr list"
 
 test_rewrite "npx playwright test" \
   "npx playwright test" \
-  "rtk playwright test"
+  "obliterate playwright test"
 
 test_rewrite "ls -la" \
   "ls -la" \
-  "rtk ls -la"
+  "obliterate ls -la"
 
 test_rewrite "curl -s https://example.com" \
   "curl -s https://example.com" \
-  "rtk curl -s https://example.com"
+  "obliterate curl -s https://example.com"
 
 test_rewrite "cat package.json" \
   "cat package.json" \
-  "rtk read package.json"
+  "obliterate read package.json"
 
 test_rewrite "grep -rn pattern src/" \
   "grep -rn pattern src/" \
-  "rtk grep -rn pattern src/"
+  "obliterate grep -rn pattern src/"
 
 test_rewrite "rg pattern src/" \
   "rg pattern src/" \
-  "rtk grep pattern src/"
+  "obliterate grep pattern src/"
 
 test_rewrite "cargo test" \
   "cargo test" \
-  "rtk cargo test"
+  "obliterate cargo test"
 
 test_rewrite "npx prisma migrate" \
   "npx prisma migrate" \
-  "rtk prisma migrate"
+  "obliterate prisma migrate"
 
-test_rewrite "rtk git status" \
-  "rtk git status" \
-  "rtk git status"
+test_rewrite "obliterate git status" \
+  "obliterate git status" \
+  "obliterate git status"
 
 echo ""
 
@@ -127,27 +127,27 @@ echo ""
 echo "--- Env var prefix handling (new) ---"
 test_rewrite "env + playwright" \
   "TEST_SESSION_ID=2 npx playwright test --config=foo" \
-  "TEST_SESSION_ID=2 rtk playwright test --config=foo"
+  "TEST_SESSION_ID=2 obliterate playwright test --config=foo"
 
 test_rewrite "env + git status" \
   "GIT_PAGER=cat git status" \
-  "GIT_PAGER=cat rtk git status"
+  "GIT_PAGER=cat obliterate git status"
 
 test_rewrite "env + git log" \
   "GIT_PAGER=cat git log --oneline -10" \
-  "GIT_PAGER=cat rtk git log --oneline -10"
+  "GIT_PAGER=cat obliterate git log --oneline -10"
 
 test_rewrite "multi env + vitest" \
   "NODE_ENV=test CI=1 npx vitest" \
-  "NODE_ENV=test CI=1 rtk vitest"
+  "NODE_ENV=test CI=1 obliterate vitest"
 
 test_rewrite "env + ls" \
   "LANG=C ls -la" \
-  "LANG=C rtk ls -la"
+  "LANG=C obliterate ls -la"
 
 test_rewrite "env + npm run" \
   "NODE_ENV=test npm run test:e2e" \
-  "NODE_ENV=test rtk npm run test:e2e"
+  "NODE_ENV=test obliterate npm run test:e2e"
 
 test_rewrite "env + docker compose (unsupported subcommand, NOT rewritten)" \
   "COMPOSE_PROJECT_NAME=test docker compose up -d" \
@@ -155,7 +155,7 @@ test_rewrite "env + docker compose (unsupported subcommand, NOT rewritten)" \
 
 test_rewrite "env + docker compose logs (supported, rewritten)" \
   "COMPOSE_PROJECT_NAME=test docker compose logs web" \
-  "COMPOSE_PROJECT_NAME=test rtk docker compose logs web"
+  "COMPOSE_PROJECT_NAME=test obliterate docker compose logs web"
 
 echo ""
 
@@ -163,33 +163,33 @@ echo ""
 echo "--- New patterns ---"
 test_rewrite "npm run test:e2e" \
   "npm run test:e2e" \
-  "rtk npm run test:e2e"
+  "obliterate npm run test:e2e"
 
 test_rewrite "npm run build" \
   "npm run build" \
-  "rtk npm run build"
+  "obliterate npm run build"
 
 test_rewrite "npm jest run" \
   "npm jest run" \
-  "rtk jest"
+  "obliterate jest"
 
-test_rewrite "docker compose up -d (NOT rewritten — unsupported by rtk)" \
+test_rewrite "docker compose up -d (NOT rewritten — unsupported by obliterate)" \
   "docker compose up -d" \
   ""
 
 test_rewrite "docker compose logs postgrest" \
   "docker compose logs postgrest" \
-  "rtk docker compose logs postgrest"
+  "obliterate docker compose logs postgrest"
 
 test_rewrite "docker compose ps" \
   "docker compose ps" \
-  "rtk docker compose ps"
+  "obliterate docker compose ps"
 
 test_rewrite "docker compose build" \
   "docker compose build" \
-  "rtk docker compose build"
+  "obliterate docker compose build"
 
-test_rewrite "docker compose down (NOT rewritten — unsupported by rtk)" \
+test_rewrite "docker compose down (NOT rewritten — unsupported by obliterate)" \
   "docker compose down" \
   ""
 
@@ -199,69 +199,69 @@ test_rewrite "docker compose -f file.yml up (NOT rewritten — flag before subco
 
 test_rewrite "docker run --rm postgres" \
   "docker run --rm postgres" \
-  "rtk docker run --rm postgres"
+  "obliterate docker run --rm postgres"
 
 test_rewrite "docker exec -it db psql" \
   "docker exec -it db psql" \
-  "rtk docker exec -it db psql"
+  "obliterate docker exec -it db psql"
 
 test_rewrite "find . -name '*.ts'" \
   "find . -name '*.ts'" \
-  "rtk find . -name '*.ts'"
+  "obliterate find . -name '*.ts'"
 
 test_rewrite "tree src/" \
   "tree src/" \
-  "rtk tree src/"
+  "obliterate tree src/"
 
 test_rewrite "wget https://example.com/file" \
   "wget https://example.com/file" \
-  "rtk wget https://example.com/file"
+  "obliterate wget https://example.com/file"
 
 test_rewrite "gh api repos/owner/repo" \
   "gh api repos/owner/repo" \
-  "rtk gh api repos/owner/repo"
+  "obliterate gh api repos/owner/repo"
 
 test_rewrite "gh release list" \
   "gh release list" \
-  "rtk gh release list"
+  "obliterate gh release list"
 
 test_rewrite "kubectl describe pod foo" \
   "kubectl describe pod foo" \
-  "rtk kubectl describe pod foo"
+  "obliterate kubectl describe pod foo"
 
 test_rewrite "kubectl apply -f deploy.yaml" \
   "kubectl apply -f deploy.yaml" \
-  "rtk kubectl apply -f deploy.yaml"
+  "obliterate kubectl apply -f deploy.yaml"
 
 echo ""
 
-# ---- SECTION 3b: RTK_DISABLED and redirect fixes (#345, #346) ----
-echo "--- RTK_DISABLED (#345) ---"
-test_rewrite "RTK_DISABLED=1 git status (no rewrite)" \
-  "RTK_DISABLED=1 git status" \
+# ---- SECTION 3b: OBLITERATE_DISABLED and redirect fixes (#345, #346) ----
+echo "--- OBLITERATE_DISABLED (#345) ---"
+test_rewrite "OBLITERATE_DISABLED=1 git status (no rewrite)" \
+  "OBLITERATE_DISABLED=1 git status" \
   ""
 
-test_rewrite "RTK_DISABLED=1 cargo test (no rewrite)" \
-  "RTK_DISABLED=1 cargo test" \
+test_rewrite "OBLITERATE_DISABLED=1 cargo test (no rewrite)" \
+  "OBLITERATE_DISABLED=1 cargo test" \
   ""
 
-test_rewrite "FOO=1 RTK_DISABLED=1 git status (no rewrite)" \
-  "FOO=1 RTK_DISABLED=1 git status" \
+test_rewrite "FOO=1 OBLITERATE_DISABLED=1 git status (no rewrite)" \
+  "FOO=1 OBLITERATE_DISABLED=1 git status" \
   ""
 
 echo ""
 echo "--- Redirect operators (#346) ---"
 test_rewrite "cargo test 2>&1 | head" \
   "cargo test 2>&1 | head" \
-  "rtk cargo test 2>&1 | head"
+  "obliterate cargo test 2>&1 | head"
 
 test_rewrite "cargo test 2>&1" \
   "cargo test 2>&1" \
-  "rtk cargo test 2>&1"
+  "obliterate cargo test 2>&1"
 
 test_rewrite "cargo test &>/dev/null" \
   "cargo test &>/dev/null" \
-  "rtk cargo test &>/dev/null"
+  "obliterate cargo test &>/dev/null"
 
 # Note: the bash hook rewrites only the first command segment (sed-based);
 # full compound rewriting (both sides of &) is handled by `obliterate rewrite` (Rust).
@@ -269,7 +269,7 @@ test_rewrite "cargo test &>/dev/null" \
 # a redirect — the hook still rewrites cargo test, no crash.
 test_rewrite "cargo test & git status (bash hook rewrites first segment only)" \
   "cargo test & git status" \
-  "rtk cargo test & git status"
+  "obliterate cargo test & git status"
 
 echo ""
 
@@ -277,23 +277,23 @@ echo ""
 echo "--- Vitest run dedup ---"
 test_rewrite "vitest (no args)" \
   "vitest" \
-  "rtk vitest"
+  "obliterate vitest"
 
 test_rewrite "vitest run (no run)" \
   "vitest run" \
-  "rtk vitest"
+  "obliterate vitest"
 
 test_rewrite "vitest --reporter" \
   "vitest --reporter=verbose" \
-  "rtk vitest --reporter=verbose"
+  "obliterate vitest --reporter=verbose"
 
 test_rewrite "npx vitest" \
   "npx vitest" \
-  "rtk vitest"
+  "obliterate vitest"
 
 test_rewrite "pnpm vitest --coverage" \
   "pnpm vitest --coverage" \
-  "rtk vitest --coverage"
+  "obliterate vitest --coverage"
 
 echo ""
 
@@ -328,7 +328,7 @@ test_rewrite "node (no pattern)" \
 echo ""
 
 # ---- SECTION 6: Audit logging ----
-echo "--- Audit logging (RTK_HOOK_AUDIT=1) ---"
+echo "--- Audit logging (OBLITERATE_HOOK_AUDIT=1) ---"
 
 AUDIT_TMPDIR=$(mktemp -d)
 trap "rm -rf $AUDIT_TMPDIR" EXIT
@@ -344,7 +344,7 @@ test_audit_log() {
 
   local input_json
   input_json=$(jq -n --arg cmd "$input_cmd" '{"tool_name":"Bash","tool_input":{"command":$cmd}}')
-  echo "$input_json" | RTK_HOOK_AUDIT=1 RTK_AUDIT_DIR="$AUDIT_TMPDIR" bash "$HOOK" 2>/dev/null || true
+  echo "$input_json" | OBLITERATE_HOOK_AUDIT=1 OBLITERATE_AUDIT_DIR="$AUDIT_TMPDIR" bash "$HOOK" 2>/dev/null || true
 
   if [ ! -f "$AUDIT_TMPDIR/hook-audit.log" ]; then
     printf "  ${RED}FAIL${RESET} %s (no log file created)\n" "$description"
@@ -373,9 +373,9 @@ test_audit_log "audit: rewrite git status" \
   "git status" \
   "rewrite"
 
-test_audit_log "audit: skip already_rtk" \
-  "rtk git status" \
-  "skip:already_rtk"
+test_audit_log "audit: skip already_obliterate" \
+  "obliterate git status" \
+  "skip:already_obliterate"
 
 test_audit_log "audit: skip heredoc" \
   "cat <<'EOF'
@@ -394,7 +394,7 @@ test_audit_log "audit: rewrite cargo test" \
 # Test log format (4 pipe-separated fields)
 rm -f "$AUDIT_TMPDIR/hook-audit.log"
 input_json=$(jq -n --arg cmd "git status" '{"tool_name":"Bash","tool_input":{"command":$cmd}}')
-echo "$input_json" | RTK_HOOK_AUDIT=1 RTK_AUDIT_DIR="$AUDIT_TMPDIR" bash "$HOOK" 2>/dev/null || true
+echo "$input_json" | OBLITERATE_HOOK_AUDIT=1 OBLITERATE_AUDIT_DIR="$AUDIT_TMPDIR" bash "$HOOK" 2>/dev/null || true
 TOTAL=$((TOTAL + 1))
 log_line=$(cat "$AUDIT_TMPDIR/hook-audit.log" 2>/dev/null || echo "")
 field_count=$(echo "$log_line" | awk -F' \\| ' '{print NF}')
@@ -407,16 +407,16 @@ else
   FAIL=$((FAIL + 1))
 fi
 
-# Test no log when RTK_HOOK_AUDIT is unset
+# Test no log when OBLITERATE_HOOK_AUDIT is unset
 rm -f "$AUDIT_TMPDIR/hook-audit.log"
 input_json=$(jq -n --arg cmd "git status" '{"tool_name":"Bash","tool_input":{"command":$cmd}}')
-echo "$input_json" | RTK_AUDIT_DIR="$AUDIT_TMPDIR" bash "$HOOK" 2>/dev/null || true
+echo "$input_json" | OBLITERATE_AUDIT_DIR="$AUDIT_TMPDIR" bash "$HOOK" 2>/dev/null || true
 TOTAL=$((TOTAL + 1))
 if [ ! -f "$AUDIT_TMPDIR/hook-audit.log" ]; then
-  printf "  ${GREEN}PASS${RESET} audit: no log when RTK_HOOK_AUDIT unset\n"
+  printf "  ${GREEN}PASS${RESET} audit: no log when OBLITERATE_HOOK_AUDIT unset\n"
   PASS=$((PASS + 1))
 else
-  printf "  ${RED}FAIL${RESET} audit: log created when RTK_HOOK_AUDIT unset\n"
+  printf "  ${RED}FAIL${RESET} audit: log created when OBLITERATE_HOOK_AUDIT unset\n"
   FAIL=$((FAIL + 1))
 fi
 

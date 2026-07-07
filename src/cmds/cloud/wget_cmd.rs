@@ -36,12 +36,12 @@ pub fn run(url: &str, args: &[String], verbose: u8) -> Result<i32> {
             format_size(size)
         );
         println!("{}", msg);
-        timer.track(&format!("wget {}", url), "rtk wget", &raw_output, &msg);
+        timer.track(&format!("wget {}", url), "obliterate wget", &raw_output, &msg);
     } else {
         let error = parse_error(&result.stderr, &result.stdout);
         let msg = format!("{} FAILED: {}", compact_url(url), error);
         println!("{}", msg);
-        timer.track(&format!("wget {}", url), "rtk wget", &raw_output, &msg);
+        timer.track(&format!("wget {}", url), "obliterate wget", &raw_output, &msg);
         return Ok(result.exit_code);
     }
 
@@ -70,37 +70,37 @@ pub fn run_stdout(url: &str, args: &[String], verbose: u8) -> Result<i32> {
         let lines: Vec<&str> = result.stdout.lines().collect();
         let total = lines.len();
 
-        let mut rtk_output = String::new();
+        let mut obliterate_output = String::new();
         if total > 20 {
-            rtk_output.push_str(&format!(
+            obliterate_output.push_str(&format!(
                 "{} ok | {} lines | {}\n",
                 compact_url(url),
                 total,
                 format_size(result.stdout.len() as u64)
             ));
-            rtk_output.push_str("--- first 10 lines ---\n");
+            obliterate_output.push_str("--- first 10 lines ---\n");
             for line in lines.iter().take(10) {
-                rtk_output.push_str(&format!("{}\n", truncate_line(line, 100)));
+                obliterate_output.push_str(&format!("{}\n", truncate_line(line, 100)));
             }
-            rtk_output.push_str(&format!("... +{} more lines", total - 10));
+            obliterate_output.push_str(&format!("... +{} more lines", total - 10));
         } else {
-            rtk_output.push_str(&format!("{} ok | {} lines\n", compact_url(url), total));
+            obliterate_output.push_str(&format!("{} ok | {} lines\n", compact_url(url), total));
             for line in &lines {
-                rtk_output.push_str(&format!("{}\n", line));
+                obliterate_output.push_str(&format!("{}\n", line));
             }
         }
-        print!("{}", rtk_output);
+        print!("{}", obliterate_output);
         timer.track(
             &format!("wget -O - {}", url),
-            "rtk wget -o",
+            "obliterate wget -o",
             &result.stdout,
-            &rtk_output,
+            &obliterate_output,
         );
     } else {
         let error = parse_error(&result.stderr, "");
         let msg = format!("{} FAILED: {}", compact_url(url), error);
         println!("{}", msg);
-        timer.track(&format!("wget -O - {}", url), "rtk wget -o", &result.stderr, &msg);
+        timer.track(&format!("wget -O - {}", url), "obliterate wget -o", &result.stderr, &msg);
         return Ok(result.exit_code);
     }
 

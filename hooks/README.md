@@ -2,7 +2,7 @@
 
 ## Scope
 
-**Deployed hook artifacts** — the actual files installed on user machines by `rtk init`. These are shell scripts, TypeScript plugins, and rules files that run outside the Rust binary. They are **thin delegates**: parse agent-specific JSON, call `rtk rewrite` as a subprocess, format agent-specific response. Zero filtering logic lives here.
+**Deployed hook artifacts** — the actual files installed on user machines by `obliterate init`. These are shell scripts, TypeScript plugins, and rules files that run outside the Rust binary. They are **thin delegates**: parse agent-specific JSON, call `obliterate rewrite` as a subprocess, format agent-specific response. Zero filtering logic lives here.
 
 Owns: per-agent hook scripts and configuration files for 9 supported agents (Claude Code, Copilot, Cursor, Cline, Windsurf, Codex, OpenCode, Hermes, Pi).
 
@@ -12,7 +12,7 @@ Relationship to `src/hooks/`: that component **creates** these files; this direc
 
 ## Purpose
 
-LLM agent integrations that intercept CLI commands and route them through RTK for token optimization. Each hook transparently rewrites raw commands (e.g., `git status`) to their RTK equivalents (e.g., `rtk git status`), delivering 60-90% token savings without requiring the agent or user to change their workflow.
+LLM agent integrations that intercept CLI commands and route them through Obliterate for token optimization. Each hook transparently rewrites raw commands (e.g., `git status`) to their Obliterate equivalents (e.g., `obliterate git status`), delivering 60-90% token savings without requiring the agent or user to change their workflow.
 
 ## How It Works
 
@@ -20,14 +20,14 @@ LLM agent integrations that intercept CLI commands and route them through RTK fo
 Agent runs command (e.g., "cargo test --nocapture")
   -> Hook intercepts (PreToolUse / plugin event)
   -> Reads JSON input, extracts command string
-  -> Calls `rtk rewrite "cargo test --nocapture"`
-  -> Registry matches pattern, returns "rtk cargo test --nocapture"
+  -> Calls `obliterate rewrite "cargo test --nocapture"`
+  -> Registry matches pattern, returns "obliterate cargo test --nocapture"
   -> Hook sends response in agent-specific JSON format
-  -> Agent executes "rtk cargo test --nocapture" instead
+  -> Agent executes "obliterate cargo test --nocapture" instead
   -> Filtered output reaches LLM (~90% fewer tokens)
 ```
 
-All rewrite logic lives in the Rust binary (`src/discover/registry.rs`). Hook scripts are **thin delegates** that handle agent-specific JSON formats and call `rtk rewrite` for the actual decision. This ensures a single source of truth for all 70+ rewrite patterns.
+All rewrite logic lives in the Rust binary (`src/discover/registry.rs`). Hook scripts are **thin delegates** that handle agent-specific JSON formats and call `obliterate rewrite` for the actual decision. This ensures a single source of truth for all 70+ rewrite patterns.
 
 ## Directory Structure
 
@@ -48,10 +48,10 @@ Each agent subdirectory has its own README with hook-specific details:
 | Agent | Mechanism | Hook Type | Can Modify Command? |
 |-------|-----------|-----------|---------------------|
 | Claude Code | Shell hook (`PreToolUse`) | Transparent rewrite | Yes (`updatedInput`) |
-| VS Code Copilot Chat | Rust binary (`rtk hook copilot`) | Transparent rewrite | Yes (`updatedInput`) |
-| GitHub Copilot CLI | Rust binary (`rtk hook copilot`) | Deny-with-suggestion | No (agent retries) |
+| VS Code Copilot Chat | Rust binary (`obliterate hook copilot`) | Transparent rewrite | Yes (`updatedInput`) |
+| GitHub Copilot CLI | Rust binary (`obliterate hook copilot`) | Deny-with-suggestion | No (agent retries) |
 | Cursor | Shell hook (`preToolUse`) | Transparent rewrite | Yes (`updated_input`) |
-| Gemini CLI | Rust binary (`rtk hook gemini`) | Transparent rewrite | Yes (`hookSpecificOutput`) |
+| Gemini CLI | Rust binary (`obliterate hook gemini`) | Transparent rewrite | Yes (`hookSpecificOutput`) |
 | Cline / Roo Code | Custom instructions (rules file) | Prompt-level guidance | N/A |
 | Windsurf | Custom instructions (rules file) | Prompt-level guidance | N/A |
 | Codex CLI | AGENTS.md / instructions | Prompt-level guidance | N/A |
@@ -79,8 +79,8 @@ Each agent subdirectory has its own README with hook-specific details:
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "allow",
-    "permissionDecisionReason": "RTK auto-rewrite",
-    "updatedInput": { "command": "rtk git status" }
+    "permissionDecisionReason": "Obliterate auto-rewrite",
+    "updatedInput": { "command": "obliterate git status" }
   }
 }
 ```
@@ -94,7 +94,7 @@ Each agent subdirectory has its own README with hook-specific details:
 ```json
 {
   "permission": "allow",
-  "updated_input": { "command": "rtk git status" }
+  "updated_input": { "command": "obliterate git status" }
 }
 ```
 
@@ -116,7 +116,7 @@ Returns `{}` when no rewrite (Cursor requires JSON for all paths).
 ```json
 {
   "permissionDecision": "deny",
-  "permissionDecisionReason": "Token savings: use `rtk git status` instead"
+  "permissionDecisionReason": "Token savings: use `obliterate git status` instead"
 }
 ```
 
@@ -150,7 +150,7 @@ Returns `{}` when no rewrite (Cursor requires JSON for all paths).
 {
   "decision": "allow",
   "hookSpecificOutput": {
-    "tool_input": { "command": "rtk git status" }
+    "tool_input": { "command": "obliterate git status" }
   }
 }
 ```
@@ -162,7 +162,7 @@ Returns `{}` when no rewrite (Cursor requires JSON for all paths).
 Mutates `args.command` in-place via the zx library:
 
 ```typescript
-const result = await $`rtk rewrite ${command}`.quiet().nothrow()
+const result = await $`obliterate rewrite ${command}`.quiet().nothrow()
 const rewritten = String(result.stdout).trim()
 if (rewritten && rewritten !== command) {
   (args as Record<string, unknown>).command = rewritten
@@ -174,7 +174,7 @@ if (rewritten && rewritten !== command) {
 Mutates `args["command"]` in-place via the `pre_tool_call` hook:
 
 ```python
-result = subprocess.run(["rtk", "rewrite", command], capture_output=True, text=True, timeout=2)
+result = subprocess.run(["obliterate", "rewrite", command], capture_output=True, text=True, timeout=2)
 rewritten = result.stdout.strip()
 if result.returncode in {0, 3} and rewritten and rewritten != command:
     args["command"] = rewritten
@@ -203,13 +203,13 @@ The registry handles `&&`, `||`, `;`, `|`, and `&` operators:
 - **And/Or/Semicolon** (`&&`, `||`, `;`): Both sides rewritten independently
 - **find/fd in pipes**: Never rewritten (output format incompatible with xargs/wc/grep)
 
-Example: `cargo fmt --all && cargo test` becomes `rtk cargo fmt --all && rtk cargo test`
+Example: `cargo fmt --all && cargo test` becomes `obliterate cargo fmt --all && obliterate cargo test`
 
 ### Override Controls
 
-- **`RTK_DISABLED=1`**: Per-command override (`RTK_DISABLED=1 git status` runs raw)
-- **`exclude_commands`**: In `~/.config/rtk/config.toml`, list commands to never rewrite. Matches against the full command after stripping env prefixes. Subcommand patterns work (`"git push"` excludes `git push origin main`). Patterns starting with `^` are treated as regex.
-- **Already-RTK**: `rtk git status` passes through unchanged (no `rtk rtk git`)
+- **`OBLITERATE_DISABLED=1`**: Per-command override (`OBLITERATE_DISABLED=1 git status` runs raw)
+- **`exclude_commands`**: In `~/.config/obliterate/config.toml`, list commands to never rewrite. Matches against the full command after stripping env prefixes. Subcommand patterns work (`"git push"` excludes `git push origin main`). Patterns starting with `^` are treated as regex.
+- **Already-Obliterate**: `obliterate git status` passes through unchanged (no `obliterate obliterate git`)
 
 ## Exit Code Contract
 
@@ -226,10 +226,10 @@ When there is no rewrite to apply, the hook must produce no output (or `{}` for 
 Hooks are **non-blocking** -- they never prevent a command from executing:
 
 - jq not installed: warning to stderr, exit 0 (command runs raw)
-- rtk binary not found: warning to stderr, exit 0
-- rtk version too old (< 0.23.0): warning to stderr, exit 0
+- obliterate binary not found: warning to stderr, exit 0
+- obliterate version too old (< 0.23.0): warning to stderr, exit 0
 - Invalid JSON input: pass through unchanged
-- `rtk rewrite` crashes: hook exits 0 (subprocess error ignored)
+- `obliterate rewrite` crashes: hook exits 0 (subprocess error ignored)
 - Filter logic error: fallback to raw command output
 
 ## Adding a New Agent Integration
@@ -246,7 +246,7 @@ New integrations must follow the [Exit Code Contract](#exit-code-contract) and [
 
 ### Eligibility
 
-RTK supports AI coding assistants that developers actually use day-to-day. To add a new agent:
+Obliterate supports AI coding assistants that developers actually use day-to-day. To add a new agent:
 
 - Agent has a **documented, stable hook/plugin API** (not experimental/alpha)
 - Agent is **actively maintained** (commit activity in last 3 months)

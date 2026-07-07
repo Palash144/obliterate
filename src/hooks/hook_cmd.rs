@@ -33,7 +33,10 @@ enum HookFormat {
     VsCode { command: String },
     /// GitHub Copilot CLI: camelCase `toolName` + `toolArgs` (JSON string), deny-with-suggestion only.
     CopilotCli { command: String },
-    /// Non-bash tool, already uses rtk, or unknown format — pass through silently.
+    /// JetBrains IDE (Copilot plugin): camelCase `toolName` = `"run_in_terminal"`.
+    /// JetBrains ignores `modifiedArgs` — only honors `permissionDecision: "deny"`.
+    CopilotIde { command: String },
+    /// Non-bash tool, already uses obliterate, or unknown format — pass through silently.
     PassThrough,
 }
 
@@ -50,7 +53,7 @@ pub fn run_copilot() -> Result<()> {
     let v: Value = match serde_json::from_str(input) {
         Ok(v) => v,
         Err(e) => {
-            let _ = writeln!(io::stderr(), "[rtk hook] Failed to parse JSON input: {e}");
+            let _ = writeln!(io::stderr(), "[obliterate hook] Failed to parse JSON input: {e}");
             return Ok(());
         }
     };
@@ -58,6 +61,7 @@ pub fn run_copilot() -> Result<()> {
     match detect_format(&v) {
         HookFormat::VsCode { command } => handle_vscode(&command),
         HookFormat::CopilotCli { command } => handle_copilot_cli(&command),
+        HookFormat::CopilotIde { command } => handle_copilot_ide(&command),
         HookFormat::PassThrough => Ok(()),
     }
 }
@@ -79,8 +83,9 @@ fn detect_format(v: &Value) -> HookFormat {
         return HookFormat::PassThrough;
     }
 
-    // Copilot CLI: camelCase keys, toolArgs is a JSON-encoded string
+    // Copilot CLI/ : camelCase keys, toolArgs is a JSON-encoded string
     if let Some(tool_name) = v.get("toolName").and_then(|t| t.as_str()) {
+        let tool_name=tool_name.trim();
         if tool_name == "bash" {
             if let Some(tool_args_str) = v.get("toolArgs").and_then(|t| t.as_str()) {
                 if let Ok(tool_args) = serde_json::from_str::<Value>(tool_args_str) {
@@ -96,6 +101,22 @@ fn detect_format(v: &Value) -> HookFormat {
                 }
             }
         }
+        if tool_name == "run_in_terminal" {
+                    if let Some(tool_args_str) = v.get("toolArgs").and_then(|t| t.as_str()) {
+                        if let Ok(tool_args) = serde_json::from_str::<Value>(tool_args_str) {
+                            if let Some(cmd) = tool_args
+                                .get("command")
+                                .and_then(|c| c.as_str())
+                                .map(|c| c.trim())
+                                .filter(|c| !c.is_empty())
+                            {
+                                return HookFormat::CopilotIde {
+                                    command: cmd.to_string(),
+                                };
+                            }
+                        }
+                    }
+                }
         return HookFormat::PassThrough;
     }
 
@@ -169,12 +190,70 @@ fn handle_copilot_cli(cmd: &str) -> Result<()> {
     let output = json!({
         "permissionDecision": "deny",
         "permissionDecisionReason": format!(
-            "Token savings: use `{}` instead (rtk saves 60-90% tokens)",
+            "Token savings: use `{}` instead (obliterate saves 60-90% tokens)",
             rewritten
         )
     });
     let _ = writeln!(io::stdout(), "{output}");
     Ok(())
+}
+// ── Copilot IDE (JetBrains) hook ──────────────────────────────
+
+fn handle_copilot_ide(cmd: &str) -> Result<()> {
+    if let Some(response) = copilot_ide_response(cmd) {
+        let _ = writeln!(io::stdout(), "{response}");
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum HookDecision {
+    AllowRewrite(String),
+    AskRewrite(String),
+    Deny,
+    Defer,
+}
+
+fn decide_hook_action(cmd: &str) -> HookDecision {
+    if permissions::check_command(cmd) == PermissionVerdict::Deny {
+        return HookDecision::Deny;
+    }
+
+    let rewritten = match get_rewritten(cmd) {
+        Some(r) => r,
+        None => return HookDecision::Defer,
+    };
+
+    match permissions::check_command(cmd) {
+        PermissionVerdict::Allow => HookDecision::AllowRewrite(rewritten),
+        PermissionVerdict::Ask | PermissionVerdict::Default => HookDecision::AskRewrite(rewritten),
+        PermissionVerdict::Deny => HookDecision::Deny,
+    }
+}
+
+fn copilot_ide_response(cmd: &str) -> Option<Value> {
+    copilot_ide_response_from_decision(decide_hook_action(cmd), cmd)
+}
+
+fn copilot_ide_response_from_decision(decision: HookDecision, cmd: &str) -> Option<Value> {
+    match decision {
+        HookDecision::AllowRewrite(ref rewritten) | HookDecision::AskRewrite(ref rewritten) => {
+            audit_log("rewrite", cmd, rewritten);
+            Some(json!({
+                "permissionDecision": "deny",
+                "permissionDecisionReason":
+                    format!("Obliterate: re-run as `{}` instead.", rewritten)
+            }))
+        }
+        HookDecision::Deny => {
+            audit_log("deny", cmd, "");
+            Some(json!({
+                "permissionDecision": "deny",
+                "permissionDecisionReason": "Blocked by Obliterate permission rule"
+            }))
+        }
+        HookDecision::Defer => None,
+    }
 }
 
 // ── Gemini hook ───────────────────────────────────────────────
@@ -206,7 +285,7 @@ pub fn run_gemini() -> Result<()> {
     if permissions::check_command(cmd) == PermissionVerdict::Deny {
         let _ = writeln!(
             io::stdout(),
-            r#"{{"decision":"deny","reason":"Blocked by RTK permission rule"}}"#
+            r#"{{"decision":"deny","reason":"Blocked by Obliterate permission rule"}}"#
         );
         return Ok(());
     }
@@ -244,9 +323,9 @@ fn print_rewrite(cmd: &str) {
 
 // ── Audit logging ─────────────────────────────────────────────
 
-/// Best-effort audit log when RTK_HOOK_AUDIT=1.
+/// Best-effort audit log when OBLITERATE_HOOK_AUDIT=1.
 fn audit_log(action: &str, original: &str, rewritten: &str) {
-    if std::env::var("RTK_HOOK_AUDIT").as_deref() != Ok("1") {
+    if std::env::var("OBLITERATE_HOOK_AUDIT").as_deref() != Ok("1") {
         return;
     }
     let _ = audit_log_inner(action, original, rewritten);
@@ -262,7 +341,7 @@ fn sanitize_log_field(s: &str) -> String {
 
 fn audit_log_inner(action: &str, original: &str, rewritten: &str) -> Option<()> {
     let home = dirs::home_dir()?;
-    let dir = home.join(".local").join("share").join("rtk");
+    let dir = home.join(".local").join("share").join("obliterate");
     std::fs::create_dir_all(&dir).ok()?;
     let path = dir.join("hook-audit.log");
     let mut file = std::fs::OpenOptions::new()
@@ -365,7 +444,7 @@ pub fn run_claude() -> Result<()> {
     let v: Value = match serde_json::from_str(input) {
         Ok(v) => v,
         Err(e) => {
-            let _ = writeln!(io::stderr(), "[rtk hook] Failed to parse JSON input: {e}");
+            let _ = writeln!(io::stderr(), "[obliterate hook] Failed to parse JSON input: {e}");
             return Ok(());
         }
     };
@@ -579,6 +658,95 @@ mod tests {
     fn test_detect_unknown_is_passthrough() {
         assert!(matches!(detect_format(&json!({})), HookFormat::PassThrough));
     }
+    // --- JetBrains (CopilotIde) format detection ---
+
+    fn jetbrains_input(tool_name: &str, cmd: &str) -> Value {
+        let args = serde_json::to_string(&json!({ "command": cmd })).unwrap();
+        json!({ "toolName": tool_name, "toolArgs": args })
+    }
+
+    #[test]
+    fn test_detect_jetbrains_run_in_terminal() {
+        assert!(matches!(
+            detect_format(&jetbrains_input("run_in_terminal", "git status")),
+            HookFormat::CopilotIde { .. }
+        ));
+    }
+
+    #[test]
+    fn test_detect_jetbrains_command_trimmed() {
+        let v = jetbrains_input("run_in_terminal", "  git status  ");
+        match detect_format(&v) {
+            HookFormat::CopilotIde { command } => {
+                assert_eq!(command, "git status");
+            }
+            other => panic!("expected CopilotIde, got {:?}", format_name(&other)),
+        }
+    }
+
+    #[test]
+    fn test_detect_jetbrains_other_tools_passthrough() {
+        let v = jetbrains_input("open_file", "path/to/file");
+        assert!(matches!(detect_format(&v), HookFormat::PassThrough));
+    }
+
+    #[test]
+    fn test_detect_camelcase_bash_unchanged() {
+        assert!(matches!(
+            detect_format(&copilot_cli_input("git status")),
+            HookFormat::CopilotCli { .. }
+        ));
+    }
+
+    #[test]
+    fn test_copilot_ide_deny_with_suggestion() {
+        let r = copilot_ide_response_from_decision(
+            HookDecision::AskRewrite("obliterate cargo test".into()),
+            "cargo test",
+        )
+        .unwrap();
+        assert_eq!(r["permissionDecision"], "deny");
+        assert!(
+            r["permissionDecisionReason"]
+                .as_str()
+                .unwrap()
+                .contains("obliterate cargo test"),
+            "reason should suggest the rewritten command"
+        );
+    }
+
+    #[test]
+    fn test_copilot_ide_allow_rewrite_also_denies() {
+        let r = copilot_ide_response_from_decision(
+            HookDecision::AllowRewrite("obliterate git status".into()),
+            "git status",
+        )
+        .unwrap();
+        assert_eq!(
+            r["permissionDecision"], "deny",
+            "JetBrains ignores modifiedArgs — must deny with suggestion"
+        );
+    }
+
+    #[test]
+    fn test_copilot_ide_already_obliterate_passthrough() {
+        assert!(copilot_ide_response("obliterate git status").is_none());
+    }
+
+    #[test]
+    fn test_copilot_ide_unsupported_passthrough() {
+        assert!(copilot_ide_response("htop").is_none());
+    }
+
+    #[cfg(test)]
+    fn format_name(f: &HookFormat) -> &'static str {
+        match f {
+            HookFormat::VsCode { .. } => "VsCode",
+            HookFormat::CopilotCli { .. } => "CopilotCli",
+            HookFormat::CopilotIde { .. } => "CopilotIde",
+            HookFormat::PassThrough => "PassThrough",
+        }
+    }
 
     #[test]
     fn test_get_rewritten_supported() {
@@ -591,8 +759,8 @@ mod tests {
     }
 
     #[test]
-    fn test_get_rewritten_already_rtk() {
-        assert!(get_rewritten("rtk git status").is_none());
+    fn test_get_rewritten_already_obliterate() {
+        assert!(get_rewritten("obliterate git status").is_none());
     }
 
     #[test]
@@ -614,7 +782,7 @@ mod tests {
             "decision": "allow",
             "hookSpecificOutput": {
                 "tool_input": {
-                    "command": "rtk git status"
+                    "command": "obliterate git status"
                 }
             }
         });
@@ -622,7 +790,7 @@ mod tests {
         assert_eq!(json["decision"], "allow");
         assert_eq!(
             json["hookSpecificOutput"]["tool_input"]["command"],
-            "rtk git status"
+            "obliterate git status"
         );
     }
 
@@ -630,15 +798,15 @@ mod tests {
     fn test_gemini_hook_uses_rewrite_command() {
         assert_eq!(
             rewrite_command_no_prefixes("git status", &[]),
-            Some("rtk git status".into())
+            Some("obliterate git status".into())
         );
         assert_eq!(
             rewrite_command_no_prefixes("cargo test", &[]),
-            Some("rtk cargo test".into())
+            Some("obliterate cargo test".into())
         );
         assert_eq!(
-            rewrite_command_no_prefixes("rtk git status", &[]),
-            Some("rtk git status".into())
+            rewrite_command_no_prefixes("obliterate git status", &[]),
+            Some("obliterate git status".into())
         );
         assert_eq!(rewrite_command_no_prefixes("cat <<EOF", &[]), None);
     }
@@ -652,7 +820,7 @@ mod tests {
         );
         assert_eq!(
             rewrite_command_no_prefixes("git status", &excluded),
-            Some("rtk git status".into())
+            Some("obliterate git status".into())
         );
     }
 
@@ -660,7 +828,7 @@ mod tests {
     fn test_gemini_hook_env_prefix_preserved() {
         assert_eq!(
             rewrite_command_no_prefixes("RUST_LOG=debug cargo test", &[]),
-            Some("RUST_LOG=debug rtk cargo test".into())
+            Some("RUST_LOG=debug obliterate cargo test".into())
         );
     }
 
@@ -694,7 +862,7 @@ mod tests {
             .pointer("/hookSpecificOutput/updatedInput/command")
             .and_then(|c| c.as_str())
             .unwrap();
-        assert_eq!(cmd, "rtk git status");
+        assert_eq!(cmd, "obliterate git status");
     }
 
     #[test]
@@ -703,7 +871,7 @@ mod tests {
         let result = run_claude_inner(&input).unwrap();
         let v: Value = serde_json::from_str(&result).unwrap();
         let updated = &v["hookSpecificOutput"]["updatedInput"];
-        assert_eq!(updated["command"], "rtk git status");
+        assert_eq!(updated["command"], "obliterate git status");
         assert_eq!(updated["timeout"], 30000);
         assert_eq!(updated["description"], "Check repo status");
     }
@@ -719,8 +887,8 @@ mod tests {
     }
 
     #[test]
-    fn test_claude_already_rtk_passthrough() {
-        assert!(run_claude_inner(&claude_input("rtk git status")).is_none());
+    fn test_claude_already_obliterate_passthrough() {
+        assert!(run_claude_inner(&claude_input("obliterate git status")).is_none());
     }
 
     #[test]
@@ -746,7 +914,7 @@ mod tests {
             .pointer("/hookSpecificOutput/updatedInput/command")
             .and_then(|c| c.as_str())
             .unwrap();
-        assert_eq!(cmd, "GIT_PAGER=cat rtk git status");
+        assert_eq!(cmd, "GIT_PAGER=cat obliterate git status");
     }
 
     #[test]
@@ -757,7 +925,7 @@ mod tests {
             .pointer("/hookSpecificOutput/updatedInput/command")
             .and_then(|c| c.as_str())
             .unwrap();
-        assert_eq!(cmd, "rtk git add . && rtk cargo test");
+        assert_eq!(cmd, "obliterate git add . && obliterate cargo test");
     }
 
     #[test]
@@ -796,7 +964,7 @@ mod tests {
         let v: Value = serde_json::from_str(&result).unwrap();
         // Cursor preToolUse expects allow/deny for rewrite application.
         assert_eq!(v["permission"], "allow");
-        assert_eq!(v["updated_input"]["command"], "rtk git status");
+        assert_eq!(v["updated_input"]["command"], "obliterate git status");
         assert!(v.get("hookSpecificOutput").is_none());
         // `continue: true` keeps the Cursor preToolUse panel from collapsing
         // to `Output: {}`; without it the rewrite is invisible to users.
@@ -822,8 +990,8 @@ mod tests {
     }
 
     #[test]
-    fn test_cursor_already_rtk_passthrough() {
-        let result = run_cursor_inner(&cursor_input("rtk git status"));
+    fn test_cursor_already_obliterate_passthrough() {
+        let result = run_cursor_inner(&cursor_input("obliterate git status"));
         assert_eq!(result, "{}");
     }
 
@@ -845,7 +1013,7 @@ mod tests {
         assert_eq!(v["permission"], "allow");
         assert_eq!(
             v["updated_input"]["command"],
-            "cd \"/tmp/proj\" && rtk git status"
+            "cd \"/tmp/proj\" && obliterate git status"
         );
     }
 
@@ -860,14 +1028,14 @@ mod tests {
         let v: Value = serde_json::from_str(&result).unwrap();
         assert_eq!(v["continue"], true);
         assert_eq!(v["permission"], "allow");
-        assert_eq!(v["updated_input"]["command"], "rtk git status");
+        assert_eq!(v["updated_input"]["command"], "obliterate git status");
     }
 
     #[test]
     fn test_cursor_strips_double_utf8_bom() {
         // Cursor on Windows ships hook stdin with **two** leading
         // UTF-8 BOMs (`EF BB BF EF BB BF`), confirmed via a stdin
-        // tracer wrapping `rtk hook cursor` on Cursor 3.2.x. This is
+        // tracer wrapping `obliterate hook cursor` on Cursor 3.2.x. This is
         // the real-world payload shape the loop needs to survive.
         let payload = cursor_input("git status");
         let with_double_bom = format!("\u{feff}\u{feff}{}", payload);
@@ -875,7 +1043,7 @@ mod tests {
         let v: Value = serde_json::from_str(&result).unwrap();
         assert_eq!(v["continue"], true);
         assert_eq!(v["permission"], "allow");
-        assert_eq!(v["updated_input"]["command"], "rtk git status");
+        assert_eq!(v["updated_input"]["command"], "obliterate git status");
     }
 
     #[test]
@@ -895,13 +1063,13 @@ mod tests {
 
     #[test]
     fn test_audit_log_silent_when_disabled() {
-        std::env::remove_var("RTK_HOOK_AUDIT");
-        audit_log("test", "git status", "rtk git status");
+        std::env::remove_var("OBLITERATE_HOOK_AUDIT");
+        audit_log("test", "git status", "obliterate git status");
     }
 
     #[test]
     fn test_audit_log_format_four_fields() {
-        let tmp = std::env::temp_dir().join("rtk-test-audit");
+        let tmp = std::env::temp_dir().join("obliterate-test-audit");
         let _ = std::fs::create_dir_all(&tmp);
         let log_path = tmp.join("hook-audit.log");
         let _ = std::fs::remove_file(&log_path);
@@ -913,7 +1081,7 @@ mod tests {
                 .open(&log_path)
                 .unwrap();
             let ts = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S");
-            writeln!(file, "{} | rewrite | git status | rtk git status", ts).unwrap();
+            writeln!(file, "{} | rewrite | git status | obliterate git status", ts).unwrap();
         }
 
         let content = std::fs::read_to_string(&log_path).unwrap();
@@ -926,7 +1094,7 @@ mod tests {
         );
         assert_eq!(parts[1], "rewrite");
         assert_eq!(parts[2], "git status");
-        assert_eq!(parts[3], "rtk git status");
+        assert_eq!(parts[3], "obliterate git status");
 
         let _ = std::fs::remove_dir_all(&tmp);
     }

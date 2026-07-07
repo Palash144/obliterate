@@ -207,7 +207,7 @@ pub fn run(args: &[String], verbose: u8) -> Result<i32> {
 
     timer.track(
         &format!("{} {}", linter, args.join(" ")),
-        &format!("rtk lint {} {}", linter, args.join(" ")),
+        &format!("obliterate lint {} {}", linter, args.join(" ")),
         &raw,
         &filtered,
     );
@@ -683,7 +683,7 @@ mod tests {
 
     #[test]
     fn test_detect_linter_after_npx_strip() {
-        // Simulates: rtk lint npx eslint src/ → after strip_pm_prefix, args = ["eslint", "src/"]
+        // Simulates: obliterate lint npx eslint src/ → after strip_pm_prefix, args = ["eslint", "src/"]
         let full_args: Vec<String> = vec!["npx".into(), "eslint".into(), "src/".into()];
         let skip = strip_pm_prefix(&full_args);
         let effective = &full_args[skip..];

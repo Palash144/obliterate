@@ -70,17 +70,17 @@ fn docker_ps(_verbose: u8) -> Result<i32> {
 
     if !result.success() {
         eprint!("{}", result.stderr);
-        timer.track("docker ps", "rtk docker ps", &raw, &raw);
+        timer.track("docker ps", "obliterate docker ps", &raw, &raw);
         return Ok(result.exit_code);
     }
 
     let stdout = result.stdout;
-    let mut rtk = String::new();
+    let mut obliterate = String::new();
 
     if stdout.trim().is_empty() {
-        rtk.push_str("[docker] 0 containers");
-        println!("{}", rtk);
-        timer.track("docker ps", "rtk docker ps", &raw, &rtk);
+        obliterate.push_str("[docker] 0 containers");
+        println!("{}", obliterate);
+        timer.track("docker ps", "obliterate docker ps", &raw, &obliterate);
         return Ok(0);
     }
 
@@ -91,20 +91,20 @@ fn docker_ps(_verbose: u8) -> Result<i32> {
         .filter_map(|line| format_container_line(line, true))
         .collect();
 
-    rtk.push_str(&format!("[docker] {} containers:\n", lines.len()));
+    obliterate.push_str(&format!("[docker] {} containers:\n", lines.len()));
     for entry in lines.iter().take(MAX_CONTAINERS) {
-        rtk.push_str(entry);
+        obliterate.push_str(entry);
     }
     if lines.len() > MAX_CONTAINERS {
-        rtk.push_str(&format!("  … +{} more\n", lines.len() - MAX_CONTAINERS));
+        obliterate.push_str(&format!("  … +{} more\n", lines.len() - MAX_CONTAINERS));
         let full: String = lines.concat();
         if let Some(hint) = crate::core::tee::force_tee_hint(&full, "docker-ps") {
-            rtk.push_str(&format!("{}\n", hint));
+            obliterate.push_str(&format!("{}\n", hint));
         }
     }
 
-    print!("{}", rtk);
-    timer.track("docker ps", "rtk docker ps", &raw, &rtk);
+    print!("{}", obliterate);
+    timer.track("docker ps", "obliterate docker ps", &raw, &obliterate);
     Ok(0)
 }
 
@@ -125,7 +125,7 @@ fn docker_ps_all(_verbose: u8) -> Result<i32> {
 
     if !result.success() {
         eprint!("{}", result.stderr);
-        timer.track("docker ps -a", "rtk docker ps -a", &raw, &raw);
+        timer.track("docker ps -a", "obliterate docker ps -a", &raw, &raw);
         return Ok(result.exit_code);
     }
 
@@ -147,27 +147,27 @@ fn docker_ps_all(_verbose: u8) -> Result<i32> {
     const MAX_CONTAINERS: usize = 20;
     let truncated = running_lines.len() > MAX_CONTAINERS || stopped_lines.len() > MAX_CONTAINERS;
 
-    let mut rtk = String::new();
-    rtk.push_str(&format!("[docker] {} running:\n", running_lines.len()));
+    let mut obliterate = String::new();
+    obliterate.push_str(&format!("[docker] {} running:\n", running_lines.len()));
     for l in running_lines.iter().take(MAX_CONTAINERS) {
-        rtk.push_str(l);
+        obliterate.push_str(l);
     }
     if running_lines.len() > MAX_CONTAINERS {
-        rtk.push_str(&format!(
+        obliterate.push_str(&format!(
             "  … +{} more\n",
             running_lines.len() - MAX_CONTAINERS
         ));
     }
     if !stopped_lines.is_empty() {
-        rtk.push_str(&format!(
+        obliterate.push_str(&format!(
             "[docker] {} stopped/exited:\n",
             stopped_lines.len()
         ));
         for l in stopped_lines.iter().take(MAX_CONTAINERS) {
-            rtk.push_str(l);
+            obliterate.push_str(l);
         }
         if stopped_lines.len() > MAX_CONTAINERS {
-            rtk.push_str(&format!(
+            obliterate.push_str(&format!(
                 "  … +{} more\n",
                 stopped_lines.len() - MAX_CONTAINERS
             ));
@@ -176,12 +176,12 @@ fn docker_ps_all(_verbose: u8) -> Result<i32> {
     if truncated {
         let full: String = running_lines.iter().chain(stopped_lines.iter()).cloned().collect();
         if let Some(hint) = crate::core::tee::force_tee_hint(&full, "docker-ps-a") {
-            rtk.push_str(&format!("{}\n", hint));
+            obliterate.push_str(&format!("{}\n", hint));
         }
     }
 
-    print!("{}", rtk);
-    timer.track("docker ps -a", "rtk docker ps -a", &raw, &rtk);
+    print!("{}", obliterate);
+    timer.track("docker ps -a", "obliterate docker ps -a", &raw, &obliterate);
     Ok(0)
 }
 
@@ -230,18 +230,18 @@ fn docker_images(_verbose: u8) -> Result<i32> {
 
     if !result.success() {
         eprint!("{}", result.stderr);
-        timer.track("docker images", "rtk docker images", &raw, &raw);
+        timer.track("docker images", "obliterate docker images", &raw, &raw);
         return Ok(result.exit_code);
     }
 
     let stdout = result.stdout;
     let lines: Vec<&str> = stdout.lines().collect();
-    let mut rtk = String::new();
+    let mut obliterate = String::new();
 
     if lines.is_empty() {
-        rtk.push_str("[docker] 0 images");
-        println!("{}", rtk);
-        timer.track("docker images", "rtk docker images", &raw, &rtk);
+        obliterate.push_str("[docker] 0 images");
+        println!("{}", obliterate);
+        timer.track("docker images", "obliterate docker images", &raw, &obliterate);
         return Ok(0);
     }
 
@@ -266,7 +266,7 @@ fn docker_images(_verbose: u8) -> Result<i32> {
     } else {
         format!("{:.0}MB", total_size_mb)
     };
-    rtk.push_str(&format!(
+    obliterate.push_str(&format!(
         "[docker] {} images ({})\n",
         lines.len(),
         total_display
@@ -284,30 +284,30 @@ fn docker_images(_verbose: u8) -> Result<i32> {
         })
         .collect();
 
-    let mut full_rtk = rtk.clone();
+    let mut full_obliterate = obliterate.clone();
     for l in &image_lines {
-        full_rtk.push_str(l);
+        full_obliterate.push_str(l);
     }
 
     for l in image_lines.iter().take(MAX_IMAGES) {
-        rtk.push_str(l);
+        obliterate.push_str(l);
     }
     if image_lines.len() > MAX_IMAGES {
-        rtk.push_str(&format!("  … +{} more\n", image_lines.len() - MAX_IMAGES));
-        if let Some(hint) = crate::core::tee::force_tee_tail_hint(&full_rtk, "docker-images", MAX_IMAGES + 2) {
-            rtk.push_str(&format!("{}\n", hint));
+        obliterate.push_str(&format!("  … +{} more\n", image_lines.len() - MAX_IMAGES));
+        if let Some(hint) = crate::core::tee::force_tee_tail_hint(&full_obliterate, "docker-images", MAX_IMAGES + 2) {
+            obliterate.push_str(&format!("{}\n", hint));
         }
     }
 
-    print!("{}", rtk);
-    timer.track("docker images", "rtk docker images", &raw, &rtk);
+    print!("{}", obliterate);
+    timer.track("docker images", "obliterate docker images", &raw, &obliterate);
     Ok(0)
 }
 
 fn docker_logs(args: &[String], _verbose: u8) -> Result<i32> {
     let container = args.first().map(|s| s.as_str()).unwrap_or("");
     if container.is_empty() {
-        println!("Usage: rtk docker logs <container>");
+        println!("Usage: obliterate docker logs <container>");
         return Ok(0);
     }
 
@@ -480,7 +480,7 @@ fn format_kubectl_services(json: &Value) -> String {
 fn kubectl_logs(args: &[String], _verbose: u8) -> Result<i32> {
     let pod = args.first().map(|s| s.as_str()).unwrap_or("");
     if pod.is_empty() {
-        println!("Usage: rtk kubectl logs <pod>");
+        println!("Usage: obliterate kubectl logs <pod>");
         return Ok(0);
     }
 
@@ -691,11 +691,11 @@ pub fn run_compose_ps(all: bool, verbose: u8) -> Result<i32> {
         eprintln!("raw docker compose ps:\n{}", raw);
     }
 
-    let rtk = format_compose_ps(&structured);
-    println!("{}", rtk);
+    let obliterate = format_compose_ps(&structured);
+    println!("{}", obliterate);
     let label = if all { "docker compose ps -a" } else { "docker compose ps" };
-    let rtk_label = if all { "rtk docker compose ps -a" } else { "rtk docker compose ps" };
-    timer.track(label, rtk_label, &raw, &rtk);
+    let obliterate_label = if all { "obliterate docker compose ps -a" } else { "obliterate docker compose ps" };
+    timer.track(label, obliterate_label, &raw, &obliterate);
     Ok(0)
 }
 

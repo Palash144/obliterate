@@ -1,4 +1,4 @@
-//! Shows users how many tokens RTK has saved them over time.
+//! Shows users how many tokens Obliterate has saved them over time.
 
 use crate::core::display_helpers::{format_duration, print_period_table};
 use crate::core::tracking::{DayStats, MonthStats, Tracker, WeekStats};
@@ -78,7 +78,7 @@ pub fn run(
 
     if summary.total_commands == 0 {
         println!("No tracking data yet.");
-        println!("Run some rtk commands to start tracking savings.");
+        println!("Run some obliterate commands to start tracking savings.");
         return Ok(());
     }
 
@@ -141,8 +141,8 @@ pub fn run(
             hook_check::HookStatus::Ok => {}
         }
 
-        // Lightweight RTK_DISABLED bypass check (best-effort, silent on failure)
-        if let Some(warning) = check_rtk_disabled_bypass() {
+        // Lightweight OBLITERATE_DISABLED bypass check (best-effort, silent on failure)
+        if let Some(warning) = check_obliterate_disabled_bypass() {
             eprintln!("{}", warning.yellow());
             eprintln!();
         }
@@ -246,10 +246,10 @@ pub fn run(
                 println!("──────────────────────────────────────────────────────────");
                 for rec in recent {
                     let time = rec.timestamp.with_timezone(&Local).format("%m-%d %H:%M");
-                    let cmd_short = if rec.rtk_cmd.len() > 25 {
-                        format!("{}...", &rec.rtk_cmd[..22])
+                    let cmd_short = if rec.obliterate_cmd.len() > 25 {
+                        format!("{}...", &rec.obliterate_cmd[..22])
                     } else {
-                        rec.rtk_cmd.clone()
+                        rec.obliterate_cmd.clone()
                     };
                     // added: tier indicators by savings level
                     let sign = if rec.savings_pct >= 70.0 {
@@ -635,12 +635,12 @@ fn export_csv(
     Ok(())
 }
 
-/// Lightweight scan of recent Claude Code sessions for RTK_DISABLED= overuse.
+/// Lightweight scan of recent Claude Code sessions for OBLITERATE_DISABLED= overuse.
 /// Returns a warning string if bypass rate exceeds 10%, None otherwise.
 /// Silently returns None on any error (missing dirs, permission issues, etc.).
-fn check_rtk_disabled_bypass() -> Option<String> {
+fn check_obliterate_disabled_bypass() -> Option<String> {
     use crate::discover::provider::{ClaudeProvider, SessionProvider};
-    use crate::discover::registry::cmd_has_rtk_disabled_prefix;
+    use crate::discover::registry::cmd_has_obliterate_disabled_prefix;
 
     let provider = ClaudeProvider;
 
@@ -663,7 +663,7 @@ fn check_rtk_disabled_bypass() -> Option<String> {
 
         for ext_cmd in &extracted {
             total_bash += 1;
-            if cmd_has_rtk_disabled_prefix(&ext_cmd.command) {
+            if cmd_has_obliterate_disabled_prefix(&ext_cmd.command) {
                 bypassed += 1;
             }
         }
@@ -676,7 +676,7 @@ fn check_rtk_disabled_bypass() -> Option<String> {
     let pct = (bypassed as f64 / total_bash as f64) * 100.0;
     if pct > 10.0 {
         Some(format!(
-            "[warn] {} commands ({:.0}%) used RTK_DISABLED=1 unnecessarily — run `obliterate discover` for details",
+            "[warn] {} commands ({:.0}%) used OBLITERATE_DISABLED=1 unnecessarily — run `obliterate discover` for details",
             bypassed, pct
         ))
     } else {
@@ -695,7 +695,7 @@ fn show_failures(tracker: &Tracker) -> Result<()> {
         return Ok(());
     }
 
-    println!("{}", styled("RTK Parse Failures", true));
+    println!("{}", styled("Obliterate Parse Failures", true));
     println!("{}", "═".repeat(60));
     println!();
 

@@ -10,6 +10,30 @@ pub const CAP_LIST: usize = 20;
 /// Inventories (`pip list`, `docker images`): exhaustive lookups.
 pub const CAP_INVENTORY: usize = 50;
 
+/// Runtime cap for errors, optionally overridden via config limits.
+#[allow(dead_code)]
+pub fn cap_errors() -> usize {
+    crate::core::config::limits().cap_errors.unwrap_or(CAP_ERRORS)
+}
+
+/// Runtime cap for warnings, optionally overridden via config limits.
+#[allow(dead_code)]
+pub fn cap_warnings() -> usize {
+    crate::core::config::limits().cap_warnings.unwrap_or(CAP_WARNINGS)
+}
+
+/// Runtime cap for list outputs, optionally overridden via config limits.
+pub fn cap_list() -> usize {
+    crate::core::config::limits().cap_list.unwrap_or(CAP_LIST)
+}
+
+/// Runtime cap for inventory outputs, optionally overridden via config limits.
+pub fn cap_inventory() -> usize {
+    crate::core::config::limits()
+        .cap_inventory
+        .unwrap_or(CAP_INVENTORY)
+}
+
 /// A cap reduced for a verbose data class. Falls back to `cap` when `by >= cap`
 /// so a deviation can never empty the list; `0` stays `0`. `const fn`, underflow-safe.
 pub const fn reduced(cap: usize, by: usize) -> usize {

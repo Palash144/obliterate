@@ -5,5 +5,5 @@
 ## Specifics
 
 - Prompt-level guidance via awareness document -- no programmatic hook
-- `rtk-awareness.md` is injected into `AGENTS.md` with an `@RTK.md` reference
-- Installed to `$CODEX_HOME` when set, otherwise `~/.codex/`, by `rtk init --codex`
+- `obliterate-awareness.md` is injected into `AGENTS.md` with an `@Obliterate.md` reference
+- Installed to `$CODEX_HOME` when set, otherwise `~/.codex/`, by `obliterate init --codex`

@@ -5,7 +5,7 @@
 //! - Tier 2 (Degraded): Partial parsing with warnings
 //! - Tier 3 (Passthrough): Raw output truncation with error marker
 //!
-//! The three-tier system ensures RTK never returns false data silently.
+//! The three-tier system ensures Obliterate never returns false data silently.
 
 pub mod formatter;
 pub mod types;
@@ -85,7 +85,7 @@ pub trait OutputParser: Sized {
     /// Implementation should follow three-tier fallback:
     /// 1. Try JSON parsing (if tool supports --json/--format json)
     /// 2. Try regex/text extraction with partial data
-    /// 3. Return truncated passthrough with `[RTK:PASSTHROUGH]` marker
+    /// 3. Return truncated passthrough with `[Obliterate:PASSTHROUGH]` marker
     fn parse(input: &str) -> ParseResult<Self::Output>;
 
     /// Parse with explicit tier preference (for testing/debugging)
@@ -115,7 +115,7 @@ pub fn truncate_output(output: &str, max_chars: usize) -> String {
 
     let truncated: String = chars[..max_chars].iter().collect();
     format!(
-        "{}\n\n[RTK:PASSTHROUGH] Output truncated ({} chars → {} chars)",
+        "{}\n\n[Obliterate:PASSTHROUGH] Output truncated ({} chars → {} chars)",
         truncated,
         chars.len(),
         max_chars
@@ -124,12 +124,149 @@ pub fn truncate_output(output: &str, max_chars: usize) -> String {
 
 /// Helper to emit degradation warning
 pub fn emit_degradation_warning(tool: &str, reason: &str) {
-    eprintln!("[RTK:DEGRADED] {} parser: {}", tool, reason);
+    eprintln!("[Obliterate:DEGRADED] {} parser: {}", tool, reason);
 }
 
 /// Helper to emit passthrough warning
 pub fn emit_passthrough_warning(tool: &str, reason: &str) {
-    eprintln!("[RTK:PASSTHROUGH] {} parser: {}", tool, reason);
+    eprintln!("[Obliterate:PASSTHROUGH] {} parser: {}", tool, reason);
+}
+
+/// Confidence score for parsed test results (0.0-1.0).
+pub fn test_result_confidence(result: &TestResult) -> f64 {
+    if result.total == 0 {
+        return 0.0;
+    }
+
+    let accounted = result
+        .passed
+        .saturating_add(result.failed)
+        .saturating_add(result.skipped);
+    if accounted == 0 {
+        return 0.0;
+    }
+
+    let coverage = if accounted >= result.total {
+        result.total as f64 / accounted as f64
+    } else {
+        accounted as f64 / result.total as f64
+    };
+
+    let failure_detail_score = if result.failed == 0 {
+        1.0
+    } else if result.failures.is_empty() {
+        0.4
+    } else {
+        (result.failures.len() as f64 / result.failed as f64).min(1.0)
+    };
+
+    (coverage * 0.7 + failure_detail_score * 0.3).clamp(0.0, 1.0)
+}
+
+/// Confidence score for parsed dependency state (0.0-1.0).
+pub fn dependency_state_confidence(result: &DependencyState) -> f64 {
+    if result.total_packages == 0 {
+        return 0.0;
+    }
+
+    let listed = result.dependencies.len();
+    if listed == 0 {
+        return 0.0;
+    }
+
+    let listing_coverage = if listed >= result.total_packages {
+        result.total_packages as f64 / listed as f64
+    } else {
+        listed as f64 / result.total_packages as f64
+    };
+
+    let outdated_consistency = if result.outdated_count <= result.total_packages {
+        1.0
+    } else {
+        0.0
+    };
+
+    (listing_coverage * 0.8 + outdated_consistency * 0.2).clamp(0.0, 1.0)
+}
+
+/// Gate parsed test output by confidence and fallback to passthrough when low-confidence.
+pub fn gate_test_parse_result(
+    result: ParseResult<TestResult>,
+    raw: &str,
+    full_min: f64,
+    degraded_min: f64,
+) -> (ParseResult<TestResult>, Option<String>) {
+    match result {
+        ParseResult::Full(data) => {
+            let confidence = test_result_confidence(&data);
+            if confidence < full_min {
+                (
+                    ParseResult::Passthrough(truncate_passthrough(raw)),
+                    Some(format!(
+                        "Tier 1 confidence {:.2} below threshold {:.2}",
+                        confidence, full_min
+                    )),
+                )
+            } else {
+                (ParseResult::Full(data), None)
+            }
+        }
+        ParseResult::Degraded(data, warnings) => {
+            let confidence = test_result_confidence(&data);
+            if confidence < degraded_min {
+                (
+                    ParseResult::Passthrough(truncate_passthrough(raw)),
+                    Some(format!(
+                        "Tier 2 confidence {:.2} below threshold {:.2}",
+                        confidence, degraded_min
+                    )),
+                )
+            } else {
+                (ParseResult::Degraded(data, warnings), None)
+            }
+        }
+        ParseResult::Passthrough(raw) => (ParseResult::Passthrough(raw), None),
+    }
+}
+
+/// Gate parsed dependency output by confidence and fallback to passthrough when low-confidence.
+pub fn gate_dependency_parse_result(
+    result: ParseResult<DependencyState>,
+    raw: &str,
+    full_min: f64,
+    degraded_min: f64,
+) -> (ParseResult<DependencyState>, Option<String>) {
+    match result {
+        ParseResult::Full(data) => {
+            let confidence = dependency_state_confidence(&data);
+            if confidence < full_min {
+                (
+                    ParseResult::Passthrough(truncate_passthrough(raw)),
+                    Some(format!(
+                        "Tier 1 confidence {:.2} below threshold {:.2}",
+                        confidence, full_min
+                    )),
+                )
+            } else {
+                (ParseResult::Full(data), None)
+            }
+        }
+        ParseResult::Degraded(data, warnings) => {
+            let confidence = dependency_state_confidence(&data);
+            if confidence < degraded_min {
+                (
+                    ParseResult::Passthrough(truncate_passthrough(raw)),
+                    Some(format!(
+                        "Tier 2 confidence {:.2} below threshold {:.2}",
+                        confidence, degraded_min
+                    )),
+                )
+            } else {
+                (ParseResult::Degraded(data, warnings), None)
+            }
+        }
+        ParseResult::Passthrough(raw) => (ParseResult::Passthrough(raw), None),
+    }
 }
 
 /// Extract a complete JSON object from input that may have non-JSON prefix (pnpm banner, dotenv messages, etc.)
@@ -239,7 +376,7 @@ mod tests {
 
         let long = "a".repeat(1000);
         let truncated = truncate_output(&long, 100);
-        assert!(truncated.contains("[RTK:PASSTHROUGH]"));
+        assert!(truncated.contains("[Obliterate:PASSTHROUGH]"));
         assert!(truncated.contains("1000 chars → 100 chars"));
     }
 
@@ -249,7 +386,7 @@ mod tests {
         let thai = "สวัสดีครับ".repeat(100);
         // Try truncating at a byte offset that might land mid-character
         let result = truncate_output(&thai, 50);
-        assert!(result.contains("[RTK:PASSTHROUGH]"));
+        assert!(result.contains("[Obliterate:PASSTHROUGH]"));
         // Should be valid UTF-8 (no panic)
         let _ = result.len();
     }
@@ -258,7 +395,7 @@ mod tests {
     fn test_truncate_output_emoji() {
         let emoji = "🎉".repeat(200);
         let result = truncate_output(&emoji, 100);
-        assert!(result.contains("[RTK:PASSTHROUGH]"));
+        assert!(result.contains("[Obliterate:PASSTHROUGH]"));
     }
 
     #[test]
@@ -318,5 +455,46 @@ Scope: all 6 workspace projects
         let extracted = extract_json_object(input).expect("Should extract JSON");
         assert!(extracted.contains("test {should} not confuse parser"));
         assert_eq!(extracted, input);
+    }
+
+    #[test]
+    fn test_test_result_confidence_low_when_inconsistent() {
+        let inconsistent = TestResult {
+            total: 10,
+            passed: 1,
+            failed: 0,
+            skipped: 0,
+            duration_ms: None,
+            failures: vec![],
+        };
+        assert!(test_result_confidence(&inconsistent) < 0.5);
+    }
+
+    #[test]
+    fn test_gate_test_parse_result_fallbacks_for_low_confidence() {
+        let weak = TestResult {
+            total: 5,
+            passed: 0,
+            failed: 0,
+            skipped: 0,
+            duration_ms: None,
+            failures: vec![],
+        };
+        let (gated, reason) = gate_test_parse_result(ParseResult::Full(weak), "raw output", 0.7, 0.5);
+        assert!(matches!(gated, ParseResult::Passthrough(_)));
+        assert!(reason.is_some());
+    }
+
+    #[test]
+    fn test_gate_dependency_parse_result_fallbacks_for_low_confidence() {
+        let weak = DependencyState {
+            total_packages: 3,
+            outdated_count: 0,
+            dependencies: vec![],
+        };
+        let (gated, reason) =
+            gate_dependency_parse_result(ParseResult::Degraded(weak, vec![]), "raw deps", 0.7, 0.55);
+        assert!(matches!(gated, ParseResult::Passthrough(_)));
+        assert!(reason.is_some());
     }
 }

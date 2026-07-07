@@ -1,4 +1,4 @@
-//! Matches shell commands against known RTK rewrite rules to decide how to handle them.
+//! Matches shell commands against known Obliterate rewrite rules to decide how to handle them.
 
 use lazy_static::lazy_static;
 use regex::{Regex, RegexSet};
@@ -10,10 +10,10 @@ use super::rules::{IGNORED_EXACT, IGNORED_PREFIXES, RULES};
 #[derive(Debug, PartialEq)]
 pub enum Classification {
     Supported {
-        rtk_equivalent: &'static str,
+        obliterate_equivalent: &'static str,
         category: &'static str,
         estimated_savings_pct: f64,
-        status: super::report::RtkStatus,
+        status: super::report::ObliterateStatus,
     },
     Unsupported {
         base_command: String,
@@ -66,7 +66,7 @@ lazy_static! {
     // Issue #1362: each capture expects a SINGLE file argument (`\S+$`). Multi-file
     // invocations like `head -3 a b c` fail to match so the segment is passed through
     // to the native `head`/`tail` binary — which already handles multi-file with
-    // `==> name <==` banners that `rtk read --max-lines` cannot reproduce.
+    // `==> name <==` banners that `obliterate read --max-lines` cannot reproduce.
     static ref HEAD_N: Regex = Regex::new(r"^head\s+-(\d+)\s+(\S+)$").unwrap();
     static ref HEAD_LINES: Regex = Regex::new(r"^head\s+--lines=(\d+)\s+(\S+)$").unwrap();
     static ref TAIL_N: Regex = Regex::new(r"^tail\s+-(\d+)\s+(\S+)$").unwrap();
@@ -160,7 +160,7 @@ pub fn classify_command(cmd: &str) -> Classification {
                     .iter()
                     .find(|(s, _)| *s == subcmd)
                     .map(|(_, st)| *st)
-                    .unwrap_or(super::report::RtkStatus::Existing);
+                    .unwrap_or(super::report::ObliterateStatus::Existing);
 
                 // Check if this subcommand has custom savings
                 let savings = rule
@@ -172,14 +172,14 @@ pub fn classify_command(cmd: &str) -> Classification {
 
                 (savings, status)
             } else {
-                (rule.savings_pct, super::report::RtkStatus::Existing)
+                (rule.savings_pct, super::report::ObliterateStatus::Existing)
             }
         } else {
-            (rule.savings_pct, super::report::RtkStatus::Existing)
+            (rule.savings_pct, super::report::ObliterateStatus::Existing)
         };
 
         Classification::Supported {
-            rtk_equivalent: rule.rtk_cmd,
+            obliterate_equivalent: rule.obliterate_cmd,
             category: rule.category,
             estimated_savings_pct: savings,
             status,
@@ -382,17 +382,17 @@ fn strip_absolute_path(cmd: &str) -> String {
     }
 }
 
-pub fn prefix_contains_rtk_disabled(prefix_part: &str) -> bool {
-    prefix_part.contains("RTK_DISABLED=")
+pub fn prefix_contains_obliterate_disabled(prefix_part: &str) -> bool {
+    prefix_part.contains("OBLITERATE_DISABLED=")
 }
 
-/// Check if a command has RTK_DISABLED= prefix in its env prefix portion.
-pub fn cmd_has_rtk_disabled_prefix(cmd: &str) -> bool {
+/// Check if a command has OBLITERATE_DISABLED= prefix in its env prefix portion.
+pub fn cmd_has_obliterate_disabled_prefix(cmd: &str) -> bool {
     let (prefix_part, _) = strip_disabled_prefix(cmd);
-    prefix_contains_rtk_disabled(prefix_part)
+    prefix_contains_obliterate_disabled(prefix_part)
 }
 
-/// Strip RTK_DISABLED=X and other env prefixes, returns `(env_prefix, actual_command)`.
+/// Strip OBLITERATE_DISABLED=X and other env prefixes, returns `(env_prefix, actual_command)`.
 pub fn strip_disabled_prefix(cmd: &str) -> (&str, &str) {
     let trimmed = cmd.trim();
     let stripped = ENV_PREFIX.replace(trimmed, "");
@@ -476,8 +476,8 @@ pub fn rewrite_command(
     let compiled = compile_exclude_patterns(excluded);
     let normalized_prefixes = normalize_transparent_prefixes(transparent_prefixes);
 
-    // Simple (non-compound) already-RTK command — return as-is.
-    // For compound commands that start with "rtk" (e.g. "obliterate git add . && cargo test"),
+    // Simple (non-compound) already-Obliterate command — return as-is.
+    // For compound commands that start with "obliterate" (e.g. "obliterate git add . && cargo test"),
     // fall through to rewrite_compound so the remaining segments get rewritten.
     let has_compound = trimmed.contains("&&")
         || trimmed.contains("||")
@@ -644,7 +644,7 @@ fn compile_exclude_patterns(patterns: &[String]) -> Vec<ExcludePattern> {
             let trimmed = pattern.trim();
             if trimmed.is_empty() || trimmed == "^" {
                 eprintln!(
-                    "rtk: warning: ignoring trivial exclude_commands pattern '{}'",
+                    "obliterate: warning: ignoring trivial exclude_commands pattern '{}'",
                     pattern
                 );
                 return None;
@@ -658,7 +658,7 @@ fn compile_exclude_patterns(patterns: &[String]) -> Vec<ExcludePattern> {
                 Ok(re) => ExcludePattern::Regex(re),
                 Err(e) => {
                     eprintln!(
-                        "rtk: warning: invalid exclude_commands pattern '{}': {}",
+                        "obliterate: warning: invalid exclude_commands pattern '{}': {}",
                         pattern, e
                     );
                     ExcludePattern::Prefix(trimmed.to_string())
@@ -714,12 +714,12 @@ fn rewrite_segment_inner(
 
     let (env_prefix, rest_after_env) = strip_disabled_prefix(trimmed);
     if !env_prefix.is_empty() {
-        // #345: RTK_DISABLED=1 in env prefix → skip rewrite entirely
+        // #345: OBLITERATE_DISABLED=1 in env prefix → skip rewrite entirely
         // #508: warn on stderr so agents learn to stop overusing it
-        if env_prefix.contains("RTK_DISABLED=") {
+        if env_prefix.contains("OBLITERATE_DISABLED=") {
             eprintln!(
-                "[obliterate] RTK_DISABLED=1 detected — skipping filter for this command. \
-                 Remove RTK_DISABLED=1 to restore token savings."
+                "[obliterate] OBLITERATE_DISABLED=1 detected — skipping filter for this command. \
+                 Remove OBLITERATE_DISABLED=1 to restore token savings."
             );
             return None;
         }
@@ -754,7 +754,7 @@ fn rewrite_segment_inner(
     // e.g. "git status 2>&1" → match "git status", re-append " 2>&1"
     let (cmd_part, redirect_suffix) = strip_trailing_redirects(trimmed);
 
-    // Already RTK — pass through unchanged
+    // Already Obliterate — pass through unchanged
     if cmd_part.starts_with("obliterate ") || cmd_part == "obliterate" {
         return Some(trimmed.to_string());
     }
@@ -764,8 +764,8 @@ fn rewrite_segment_inner(
     }
 
     // Most cat flags (-v, -A, -e, -t, -s, -b, --show-all, etc.) have different
-    // semantics than rtk read or no equivalent at all. Only `-n` (line numbers)
-    // maps correctly to `rtk read -n`. Skip rewrite for any other flag.
+    // semantics than obliterate read or no equivalent at all. Only `-n` (line numbers)
+    // maps correctly to `obliterate read -n`. Skip rewrite for any other flag.
     if let Some(cmd_args) = cmd_part.strip_prefix("cat ") {
         let args = cmd_args.trim_start();
         if args.starts_with('-') && !args.starts_with("-n ") && !args.starts_with("-n\t") {
@@ -774,20 +774,20 @@ fn rewrite_segment_inner(
     }
 
     // Use classify_command for correct ignore/prefix handling
-    let rtk_equivalent = match classify_command(cmd_part) {
-        Classification::Supported { rtk_equivalent, .. } => {
+    let obliterate_equivalent = match classify_command(cmd_part) {
+        Classification::Supported { obliterate_equivalent, .. } => {
             let stripped = ENV_PREFIX.replace(cmd_part, "");
             let cmd_clean = stripped.trim();
             if is_excluded(cmd_clean, excluded) {
                 return None;
             }
-            rtk_equivalent
+            obliterate_equivalent
         }
         _ => return None,
     };
 
-    // Find the matching rule (rtk_cmd values are unique across all rules)
-    let rule = RULES.iter().find(|r| r.rtk_cmd == rtk_equivalent)?;
+    // Find the matching rule (obliterate_cmd values are unique across all rules)
+    let rule = RULES.iter().find(|r| r.obliterate_cmd == obliterate_equivalent)?;
 
     if let Some(parts) = parse_golangci_run_parts(cmd_part) {
         let rewritten = if parts.global_segment.is_empty() {
@@ -802,8 +802,8 @@ fn rewrite_segment_inner(
     }
 
     // #196: gh with --json/--jq/--template produces structured output that
-    // rtk gh would corrupt — skip rewrite so the caller gets raw JSON.
-    if rule.rtk_cmd == "obliterate gh" {
+    // obliterate gh would corrupt — skip rewrite so the caller gets raw JSON.
+    if rule.obliterate_cmd == "obliterate gh" {
         let args_lower = cmd_part.to_lowercase();
         if args_lower.contains("--json")
             || args_lower.contains("--jq")
@@ -817,9 +817,9 @@ fn rewrite_segment_inner(
     for &prefix in rule.rewrite_prefixes {
         if let Some(rest) = strip_word_prefix(cmd_part, prefix) {
             let rewritten = if rest.is_empty() {
-                format!("{}{}", rule.rtk_cmd, redirect_suffix)
+                format!("{}{}", rule.obliterate_cmd, redirect_suffix)
             } else {
-                format!("{} {}{}", rule.rtk_cmd, rest, redirect_suffix)
+                format!("{} {}{}", rule.obliterate_cmd, rest, redirect_suffix)
             };
             return Some(rewritten);
         }
@@ -845,7 +845,7 @@ fn strip_word_prefix<'a>(cmd: &'a str, prefix: &str) -> Option<&'a str> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::report::RtkStatus;
+    use super::super::report::ObliterateStatus;
     use super::*;
 
     fn rewrite_command_no_prefixes(cmd: &str, excluded: &[String]) -> Option<String> {
@@ -857,10 +857,10 @@ mod tests {
         assert_eq!(
             classify_command("git status"),
             Classification::Supported {
-                rtk_equivalent: "obliterate git",
+                obliterate_equivalent: "obliterate git",
                 category: "Git",
                 estimated_savings_pct: 70.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -870,10 +870,10 @@ mod tests {
         assert_eq!(
             classify_command("yadm status"),
             Classification::Supported {
-                rtk_equivalent: "obliterate git",
+                obliterate_equivalent: "obliterate git",
                 category: "Git",
                 estimated_savings_pct: 70.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -883,10 +883,10 @@ mod tests {
         assert_eq!(
             classify_command("yadm diff"),
             Classification::Supported {
-                rtk_equivalent: "obliterate git",
+                obliterate_equivalent: "obliterate git",
                 category: "Git",
                 estimated_savings_pct: 80.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -904,10 +904,10 @@ mod tests {
         assert_eq!(
             classify_command("git diff --cached"),
             Classification::Supported {
-                rtk_equivalent: "obliterate git",
+                obliterate_equivalent: "obliterate git",
                 category: "Git",
                 estimated_savings_pct: 80.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -917,10 +917,10 @@ mod tests {
         assert_eq!(
             classify_command("cargo test filter::"),
             Classification::Supported {
-                rtk_equivalent: "obliterate cargo",
+                obliterate_equivalent: "obliterate cargo",
                 category: "Cargo",
                 estimated_savings_pct: 90.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -930,10 +930,10 @@ mod tests {
         assert_eq!(
             classify_command("npx tsc --noEmit"),
             Classification::Supported {
-                rtk_equivalent: "obliterate tsc",
+                obliterate_equivalent: "obliterate tsc",
                 category: "Build",
                 estimated_savings_pct: 83.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -943,10 +943,10 @@ mod tests {
         assert_eq!(
             classify_command("cat src/main.rs"),
             Classification::Supported {
-                rtk_equivalent: "obliterate read",
+                obliterate_equivalent: "obliterate read",
                 category: "Files",
                 estimated_savings_pct: 60.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -976,7 +976,7 @@ mod tests {
     }
 
     #[test]
-    fn test_classify_rtk_already() {
+    fn test_classify_obliterate_already() {
         assert_eq!(classify_command("obliterate git status"), Classification::Ignored);
     }
 
@@ -1003,10 +1003,10 @@ mod tests {
         assert_eq!(
             classify_command("GIT_SSH_COMMAND=ssh git push"),
             Classification::Supported {
-                rtk_equivalent: "obliterate git",
+                obliterate_equivalent: "obliterate git",
                 category: "Git",
                 estimated_savings_pct: 70.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -1016,10 +1016,10 @@ mod tests {
         assert_eq!(
             classify_command("sudo docker ps"),
             Classification::Supported {
-                rtk_equivalent: "obliterate docker",
+                obliterate_equivalent: "obliterate docker",
                 category: "Infra",
                 estimated_savings_pct: 85.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -1029,10 +1029,10 @@ mod tests {
         assert_eq!(
             classify_command("cargo check"),
             Classification::Supported {
-                rtk_equivalent: "obliterate cargo",
+                obliterate_equivalent: "obliterate cargo",
                 category: "Cargo",
                 estimated_savings_pct: 80.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -1042,10 +1042,10 @@ mod tests {
         assert_eq!(
             classify_command("cargo check --all-targets"),
             Classification::Supported {
-                rtk_equivalent: "obliterate cargo",
+                obliterate_equivalent: "obliterate cargo",
                 category: "Cargo",
                 estimated_savings_pct: 80.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -1055,10 +1055,10 @@ mod tests {
         assert_eq!(
             classify_command("cargo fmt"),
             Classification::Supported {
-                rtk_equivalent: "obliterate cargo",
+                obliterate_equivalent: "obliterate cargo",
                 category: "Cargo",
                 estimated_savings_pct: 80.0,
-                status: RtkStatus::Passthrough,
+                status: ObliterateStatus::Passthrough,
             }
         );
     }
@@ -1068,10 +1068,10 @@ mod tests {
         assert_eq!(
             classify_command("cargo clippy --all-targets"),
             Classification::Supported {
-                rtk_equivalent: "obliterate cargo",
+                obliterate_equivalent: "obliterate cargo",
                 category: "Cargo",
                 estimated_savings_pct: 80.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -1111,10 +1111,10 @@ mod tests {
         assert_eq!(
             classify_command("find . -name foo"),
             Classification::Supported {
-                rtk_equivalent: "obliterate find",
+                obliterate_equivalent: "obliterate find",
                 category: "Files",
                 estimated_savings_pct: 70.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -1170,10 +1170,10 @@ mod tests {
         assert_eq!(
             classify_command("mypy src/"),
             Classification::Supported {
-                rtk_equivalent: "obliterate mypy",
+                obliterate_equivalent: "obliterate mypy",
                 category: "Build",
                 estimated_savings_pct: 80.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -1183,10 +1183,10 @@ mod tests {
         assert_eq!(
             classify_command("python3 -m mypy --strict"),
             Classification::Supported {
-                rtk_equivalent: "obliterate mypy",
+                obliterate_equivalent: "obliterate mypy",
                 category: "Build",
                 estimated_savings_pct: 80.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -1242,7 +1242,7 @@ mod tests {
             matches!(
                 result,
                 Classification::Supported {
-                    rtk_equivalent: "obliterate git",
+                    obliterate_equivalent: "obliterate git",
                     ..
                 }
             ),
@@ -1263,7 +1263,7 @@ mod tests {
     fn test_rewrite_compound_and() {
         assert_eq!(
             rewrite_command_no_prefixes("git add . && cargo test", &[]),
-            Some("obliterate git add . && rtk cargo test".into())
+            Some("obliterate git add . && obliterate cargo test".into())
         );
     }
 
@@ -1274,12 +1274,12 @@ mod tests {
                 "cargo fmt --all && cargo clippy --all-targets && cargo test",
                 &[]
             ),
-            Some("obliterate cargo fmt --all && rtk cargo clippy --all-targets && rtk cargo test".into())
+            Some("obliterate cargo fmt --all && obliterate cargo clippy --all-targets && obliterate cargo test".into())
         );
     }
 
     #[test]
-    fn test_rewrite_already_rtk() {
+    fn test_rewrite_already_obliterate() {
         assert_eq!(
             rewrite_command_no_prefixes("obliterate git status", &[]),
             Some("obliterate git status".into())
@@ -1290,7 +1290,7 @@ mod tests {
     fn test_rewrite_background_single_amp() {
         assert_eq!(
             rewrite_command_no_prefixes("cargo test & git status", &[]),
-            Some("obliterate cargo test & rtk git status".into())
+            Some("obliterate cargo test & obliterate git status".into())
         );
     }
 
@@ -1307,7 +1307,7 @@ mod tests {
         // `&&` must still work after adding `&` support
         assert_eq!(
             rewrite_command_no_prefixes("cargo test && git status", &[]),
-            Some("obliterate cargo test && rtk git status".into())
+            Some("obliterate cargo test && obliterate git status".into())
         );
     }
 
@@ -1325,7 +1325,7 @@ mod tests {
     fn test_rewrite_with_env_prefix() {
         assert_eq!(
             rewrite_command_no_prefixes("GIT_SSH_COMMAND=ssh git push", &[]),
-            Some("GIT_SSH_COMMAND=ssh rtk git push".into())
+            Some("GIT_SSH_COMMAND=ssh obliterate git push".into())
         );
     }
 
@@ -1368,7 +1368,7 @@ mod tests {
 
     #[test]
     fn test_rewrite_cat_with_incompatible_flags_skipped() {
-        // cat flags with different semantics than rtk read — skip rewrite
+        // cat flags with different semantics than obliterate read — skip rewrite
         assert_eq!(rewrite_command_no_prefixes("cat -A file.cpp", &[]), None);
         assert_eq!(rewrite_command_no_prefixes("cat -v file.txt", &[]), None);
         assert_eq!(rewrite_command_no_prefixes("cat -e file.txt", &[]), None);
@@ -1382,7 +1382,7 @@ mod tests {
 
     #[test]
     fn test_rewrite_cat_with_compatible_flags() {
-        // cat -n (line numbers) maps to rtk read -n — allow rewrite
+        // cat -n (line numbers) maps to obliterate read -n — allow rewrite
         assert_eq!(
             rewrite_command_no_prefixes("cat -n file.txt", &[]),
             Some("obliterate read -n file.txt".into())
@@ -1466,7 +1466,7 @@ mod tests {
 
     #[test]
     fn test_rewrite_find_pipe_skipped() {
-        // find in a pipe should NOT be rewritten — rtk find output format
+        // find in a pipe should NOT be rewritten — obliterate find output format
         // is incompatible with pipe consumers like xargs (#439)
         assert_eq!(
             rewrite_command_no_prefixes("find . -name '*.rs' | xargs grep 'fn run'", &[]),
@@ -1507,73 +1507,73 @@ mod tests {
 
     #[test]
     fn test_rewrite_mixed_compound_partial() {
-        // First segment already RTK, second gets rewritten
+        // First segment already Obliterate, second gets rewritten
         assert_eq!(
             rewrite_command_no_prefixes("obliterate git add . && cargo test", &[]),
-            Some("obliterate git add . && rtk cargo test".into())
+            Some("obliterate git add . && obliterate cargo test".into())
         );
     }
 
-    // --- #345: RTK_DISABLED ---
+    // --- #345: OBLITERATE_DISABLED ---
 
     #[test]
-    fn test_rewrite_rtk_disabled_curl() {
+    fn test_rewrite_obliterate_disabled_curl() {
         assert_eq!(
-            rewrite_command_no_prefixes("RTK_DISABLED=1 curl https://example.com", &[]),
+            rewrite_command_no_prefixes("OBLITERATE_DISABLED=1 curl https://example.com", &[]),
             None
         );
     }
 
     #[test]
-    fn test_rewrite_rtk_disabled_git_status() {
+    fn test_rewrite_obliterate_disabled_git_status() {
         assert_eq!(
-            rewrite_command_no_prefixes("RTK_DISABLED=1 git status", &[]),
+            rewrite_command_no_prefixes("OBLITERATE_DISABLED=1 git status", &[]),
             None
         );
     }
 
     #[test]
-    fn test_rewrite_rtk_disabled_multi_env() {
+    fn test_rewrite_obliterate_disabled_multi_env() {
         assert_eq!(
-            rewrite_command_no_prefixes("FOO=1 RTK_DISABLED=1 git status", &[]),
+            rewrite_command_no_prefixes("FOO=1 OBLITERATE_DISABLED=1 git status", &[]),
             None
         );
     }
 
     #[test]
-    fn test_rewrite_rtk_disabled_warns_on_stderr() {
+    fn test_rewrite_obliterate_disabled_warns_on_stderr() {
         assert_eq!(
-            rewrite_command_no_prefixes("RTK_DISABLED=1 git status", &[]),
+            rewrite_command_no_prefixes("OBLITERATE_DISABLED=1 git status", &[]),
             None
         );
     }
 
     #[test]
-    fn test_rewrite_rtk_disabled_subprocess_warns() {
-        let rtk_bin = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+    fn test_rewrite_obliterate_disabled_subprocess_warns() {
+        let obliterate_bin = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("target")
             .join("debug")
-            .join("rtk");
-        if !rtk_bin.exists() {
+            .join("obliterate");
+        if !obliterate_bin.exists() {
             return;
         }
-        let rtk_mtime = std::fs::metadata(&rtk_bin)
+        let obliterate_mtime = std::fs::metadata(&obliterate_bin)
             .ok()
             .and_then(|m| m.modified().ok());
         let test_mtime = std::env::current_exe()
             .ok()
             .and_then(|p| std::fs::metadata(p).ok())
             .and_then(|m| m.modified().ok());
-        if let (Some(rtk_t), Some(test_t)) = (rtk_mtime, test_mtime) {
-            if rtk_t < test_t {
+        if let (Some(obliterate_t), Some(test_t)) = (obliterate_mtime, test_mtime) {
+            if obliterate_t < test_t {
                 return;
             }
         }
 
-        let output = std::process::Command::new(&rtk_bin)
-            .args(["rewrite", "RTK_DISABLED=1 git status"])
+        let output = std::process::Command::new(&obliterate_bin)
+            .args(["rewrite", "OBLITERATE_DISABLED=1 git status"])
             .output()
-            .expect("Failed to run rtk");
+            .expect("Failed to run obliterate");
 
         assert!(
             !output.status.success(),
@@ -1581,17 +1581,17 @@ mod tests {
         );
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(
-            stderr.contains("RTK_DISABLED=1 detected"),
+            stderr.contains("OBLITERATE_DISABLED=1 detected"),
             "Should warn on stderr, got: {}",
             stderr
         );
     }
 
     #[test]
-    fn test_rewrite_non_rtk_disabled_env_still_rewrites() {
+    fn test_rewrite_non_obliterate_disabled_env_still_rewrites() {
         assert_eq!(
             rewrite_command_no_prefixes("SOME_VAR=1 git status", &[]),
-            Some("SOME_VAR=1 rtk git status".into())
+            Some("SOME_VAR=1 obliterate git status".into())
         );
     }
 
@@ -1602,7 +1602,7 @@ mod tests {
                 r#"GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no" git push"#,
                 &[]
             ),
-            Some(r#"GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no" rtk git push"#.into())
+            Some(r#"GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no" obliterate git push"#.into())
         );
     }
 
@@ -1610,7 +1610,7 @@ mod tests {
     fn test_rewrite_env_single_quoted_value_with_spaces() {
         assert_eq!(
             rewrite_command_no_prefixes("EDITOR='vim -u NONE' git commit", &[]),
-            Some("EDITOR='vim -u NONE' rtk git commit".into())
+            Some("EDITOR='vim -u NONE' obliterate git commit".into())
         );
     }
 
@@ -1618,7 +1618,7 @@ mod tests {
     fn test_rewrite_env_quoted_plus_unquoted() {
         assert_eq!(
             rewrite_command_no_prefixes(r#"FOO="bar baz" BAR=1 git status"#, &[]),
-            Some(r#"FOO="bar baz" BAR=1 rtk git status"#.into())
+            Some(r#"FOO="bar baz" BAR=1 obliterate git status"#.into())
         );
     }
 
@@ -1626,7 +1626,7 @@ mod tests {
     fn test_rewrite_env_escaped_quotes_in_value() {
         assert_eq!(
             rewrite_command_no_prefixes(r#"FOO="he said \"hello\"" git status"#, &[]),
-            Some(r#"FOO="he said \"hello\"" rtk git status"#.into())
+            Some(r#"FOO="he said \"hello\"" obliterate git status"#.into())
         );
     }
 
@@ -1635,10 +1635,10 @@ mod tests {
         assert_eq!(
             classify_command(r#"GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no" git push"#),
             Classification::Supported {
-                rtk_equivalent: "obliterate git",
+                obliterate_equivalent: "obliterate git",
                 category: "Git",
                 estimated_savings_pct: 70.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -1720,7 +1720,7 @@ mod tests {
         // background `&` must still work after redirect fix
         assert_eq!(
             rewrite_command_no_prefixes("cargo test & git status", &[]),
-            Some("obliterate cargo test & rtk git status".into())
+            Some("obliterate cargo test & obliterate git status".into())
         );
     }
 
@@ -1728,7 +1728,7 @@ mod tests {
 
     #[test]
     fn test_rewrite_head_numeric_flag() {
-        // head -20 file → rtk read file --max-lines 20 (not rtk read -20 file)
+        // head -20 file → obliterate read file --max-lines 20 (not obliterate read -20 file)
         assert_eq!(
             rewrite_command_no_prefixes("head -20 src/main.rs", &[]),
             Some("obliterate read src/main.rs --max-lines 20".into())
@@ -1745,7 +1745,7 @@ mod tests {
 
     #[test]
     fn test_rewrite_head_no_flag_still_rewrites() {
-        // plain `head file` → `rtk read file` (no numeric flag)
+        // plain `head file` → `obliterate read file` (no numeric flag)
         assert_eq!(
             rewrite_command_no_prefixes("head src/main.rs", &[]),
             Some("obliterate read src/main.rs".into())
@@ -1808,9 +1808,9 @@ mod tests {
 
     // --- Issue #1362: head/tail with multiple files falls back to native command ---
     //
-    // `rtk read <file> --max-lines N` only accepts a single positional file path in
+    // `obliterate read <file> --max-lines N` only accepts a single positional file path in
     // a shape that maps cleanly to `head -N`. Rewriting `head -N a b c` to
-    // `rtk read a b c --max-lines N` previously produced a command where `rtk read`
+    // `obliterate read a b c --max-lines N` previously produced a command where `obliterate read`
     // would concatenate the files without the `==> name <==` banners that native
     // `head` emits, so the fix is to skip the rewrite and let the shell run the
     // real `head`/`tail` binary.
@@ -1870,7 +1870,7 @@ mod tests {
         assert!(matches!(
             classify_command("gh release list"),
             Classification::Supported {
-                rtk_equivalent: "obliterate gh",
+                obliterate_equivalent: "obliterate gh",
                 ..
             }
         ));
@@ -1881,7 +1881,7 @@ mod tests {
         assert!(matches!(
             classify_command("glab mr list"),
             Classification::Supported {
-                rtk_equivalent: "obliterate glab",
+                obliterate_equivalent: "obliterate glab",
                 ..
             }
         ));
@@ -1892,7 +1892,7 @@ mod tests {
         assert!(matches!(
             classify_command("glab ci list"),
             Classification::Supported {
-                rtk_equivalent: "obliterate glab",
+                obliterate_equivalent: "obliterate glab",
                 ..
             }
         ));
@@ -1903,7 +1903,7 @@ mod tests {
         assert!(matches!(
             classify_command("glab release list"),
             Classification::Supported {
-                rtk_equivalent: "obliterate glab",
+                obliterate_equivalent: "obliterate glab",
                 ..
             }
         ));
@@ -1928,9 +1928,9 @@ mod tests {
     #[test]
     fn test_classify_cargo_install() {
         assert!(matches!(
-            classify_command("cargo install rtk"),
+            classify_command("cargo install obliterate"),
             Classification::Supported {
-                rtk_equivalent: "obliterate cargo",
+                obliterate_equivalent: "obliterate cargo",
                 ..
             }
         ));
@@ -1941,7 +1941,7 @@ mod tests {
         assert!(matches!(
             classify_command("docker run --rm ubuntu bash"),
             Classification::Supported {
-                rtk_equivalent: "obliterate docker",
+                obliterate_equivalent: "obliterate docker",
                 ..
             }
         ));
@@ -1952,7 +1952,7 @@ mod tests {
         assert!(matches!(
             classify_command("docker exec -it mycontainer bash"),
             Classification::Supported {
-                rtk_equivalent: "obliterate docker",
+                obliterate_equivalent: "obliterate docker",
                 ..
             }
         ));
@@ -1963,7 +1963,7 @@ mod tests {
         assert!(matches!(
             classify_command("docker build -t myimage ."),
             Classification::Supported {
-                rtk_equivalent: "obliterate docker",
+                obliterate_equivalent: "obliterate docker",
                 ..
             }
         ));
@@ -1974,7 +1974,7 @@ mod tests {
         assert!(matches!(
             classify_command("kubectl describe pod mypod"),
             Classification::Supported {
-                rtk_equivalent: "obliterate kubectl",
+                obliterate_equivalent: "obliterate kubectl",
                 ..
             }
         ));
@@ -1985,7 +1985,7 @@ mod tests {
         assert!(matches!(
             classify_command("kubectl apply -f deploy.yaml"),
             Classification::Supported {
-                rtk_equivalent: "obliterate kubectl",
+                obliterate_equivalent: "obliterate kubectl",
                 ..
             }
         ));
@@ -1996,7 +1996,7 @@ mod tests {
         assert!(matches!(
             classify_command("tree src/"),
             Classification::Supported {
-                rtk_equivalent: "obliterate tree",
+                obliterate_equivalent: "obliterate tree",
                 ..
             }
         ));
@@ -2007,7 +2007,7 @@ mod tests {
         assert!(matches!(
             classify_command("diff file1.txt file2.txt"),
             Classification::Supported {
-                rtk_equivalent: "obliterate diff",
+                obliterate_equivalent: "obliterate diff",
                 ..
             }
         ));
@@ -2040,8 +2040,8 @@ mod tests {
     #[test]
     fn test_rewrite_cargo_install() {
         assert_eq!(
-            rewrite_command_no_prefixes("cargo install rtk", &[]),
-            Some("obliterate cargo install rtk".into())
+            rewrite_command_no_prefixes("cargo install obliterate", &[]),
+            Some("obliterate cargo install obliterate".into())
         );
     }
 
@@ -2066,10 +2066,10 @@ mod tests {
         assert!(matches!(
             classify_command("swift test"),
             Classification::Supported {
-                rtk_equivalent: "obliterate swift",
+                obliterate_equivalent: "obliterate swift",
                 category: "Build",
                 estimated_savings_pct: 90.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         ));
     }
@@ -2139,7 +2139,7 @@ mod tests {
         assert!(matches!(
             classify_command("aws s3 ls"),
             Classification::Supported {
-                rtk_equivalent: "obliterate aws",
+                obliterate_equivalent: "obliterate aws",
                 ..
             }
         ));
@@ -2150,7 +2150,7 @@ mod tests {
         assert!(matches!(
             classify_command("aws ec2 describe-instances"),
             Classification::Supported {
-                rtk_equivalent: "obliterate aws",
+                obliterate_equivalent: "obliterate aws",
                 ..
             }
         ));
@@ -2161,7 +2161,7 @@ mod tests {
         assert!(matches!(
             classify_command("psql -U postgres"),
             Classification::Supported {
-                rtk_equivalent: "obliterate psql",
+                obliterate_equivalent: "obliterate psql",
                 ..
             }
         ));
@@ -2172,7 +2172,7 @@ mod tests {
         assert!(matches!(
             classify_command("psql postgres://localhost/mydb"),
             Classification::Supported {
-                rtk_equivalent: "obliterate psql",
+                obliterate_equivalent: "obliterate psql",
                 ..
             }
         ));
@@ -2209,7 +2209,7 @@ mod tests {
         assert!(matches!(
             classify_command("ruff check ."),
             Classification::Supported {
-                rtk_equivalent: "obliterate ruff",
+                obliterate_equivalent: "obliterate ruff",
                 ..
             }
         ));
@@ -2220,7 +2220,7 @@ mod tests {
         assert!(matches!(
             classify_command("ruff format src/"),
             Classification::Supported {
-                rtk_equivalent: "obliterate ruff",
+                obliterate_equivalent: "obliterate ruff",
                 ..
             }
         ));
@@ -2231,7 +2231,7 @@ mod tests {
         assert!(matches!(
             classify_command("pytest tests/"),
             Classification::Supported {
-                rtk_equivalent: "obliterate pytest",
+                obliterate_equivalent: "obliterate pytest",
                 ..
             }
         ));
@@ -2242,7 +2242,7 @@ mod tests {
         assert!(matches!(
             classify_command("python -m pytest tests/"),
             Classification::Supported {
-                rtk_equivalent: "obliterate pytest",
+                obliterate_equivalent: "obliterate pytest",
                 ..
             }
         ));
@@ -2253,7 +2253,7 @@ mod tests {
         assert!(matches!(
             classify_command("pip list"),
             Classification::Supported {
-                rtk_equivalent: "obliterate pip",
+                obliterate_equivalent: "obliterate pip",
                 ..
             }
         ));
@@ -2264,7 +2264,7 @@ mod tests {
         assert!(matches!(
             classify_command("uv pip list"),
             Classification::Supported {
-                rtk_equivalent: "obliterate pip",
+                obliterate_equivalent: "obliterate pip",
                 ..
             }
         ));
@@ -2333,7 +2333,7 @@ mod tests {
         assert!(matches!(
             classify_command("go test ./..."),
             Classification::Supported {
-                rtk_equivalent: "obliterate go",
+                obliterate_equivalent: "obliterate go",
                 ..
             }
         ));
@@ -2344,7 +2344,7 @@ mod tests {
         assert!(matches!(
             classify_command("go build ./..."),
             Classification::Supported {
-                rtk_equivalent: "obliterate go",
+                obliterate_equivalent: "obliterate go",
                 ..
             }
         ));
@@ -2355,7 +2355,7 @@ mod tests {
         assert!(matches!(
             classify_command("go vet ./..."),
             Classification::Supported {
-                rtk_equivalent: "obliterate go",
+                obliterate_equivalent: "obliterate go",
                 ..
             }
         ));
@@ -2366,7 +2366,7 @@ mod tests {
         assert!(matches!(
             classify_command("golangci-lint run"),
             Classification::Supported {
-                rtk_equivalent: "obliterate golangci-lint run",
+                obliterate_equivalent: "obliterate golangci-lint run",
                 ..
             }
         ));
@@ -2377,7 +2377,7 @@ mod tests {
         assert!(matches!(
             classify_command("golangci-lint -v run ./..."),
             Classification::Supported {
-                rtk_equivalent: "obliterate golangci-lint run",
+                obliterate_equivalent: "obliterate golangci-lint run",
                 ..
             }
         ));
@@ -2388,7 +2388,7 @@ mod tests {
         assert!(matches!(
             classify_command("golangci-lint --color never run ./..."),
             Classification::Supported {
-                rtk_equivalent: "obliterate golangci-lint run",
+                obliterate_equivalent: "obliterate golangci-lint run",
                 ..
             }
         ));
@@ -2399,7 +2399,7 @@ mod tests {
         assert!(matches!(
             classify_command("golangci-lint --color=never run ./..."),
             Classification::Supported {
-                rtk_equivalent: "obliterate golangci-lint run",
+                obliterate_equivalent: "obliterate golangci-lint run",
                 ..
             }
         ));
@@ -2410,7 +2410,7 @@ mod tests {
         assert!(matches!(
             classify_command("golangci-lint --config=foo.yml run ./..."),
             Classification::Supported {
-                rtk_equivalent: "obliterate golangci-lint run",
+                obliterate_equivalent: "obliterate golangci-lint run",
                 ..
             }
         ));
@@ -2421,7 +2421,7 @@ mod tests {
         assert!(!matches!(
             classify_command("golangci-lint"),
             Classification::Supported {
-                rtk_equivalent: "obliterate golangci-lint run",
+                obliterate_equivalent: "obliterate golangci-lint run",
                 ..
             }
         ));
@@ -2432,7 +2432,7 @@ mod tests {
         assert!(!matches!(
             classify_command("golangci-lint version"),
             Classification::Supported {
-                rtk_equivalent: "obliterate golangci-lint run",
+                obliterate_equivalent: "obliterate golangci-lint run",
                 ..
             }
         ));
@@ -2506,7 +2506,7 @@ mod tests {
     fn test_rewrite_env_prefixed_golangci_lint_with_value_flag_before_run() {
         assert_eq!(
             rewrite_command_no_prefixes("FOO=1 golangci-lint --color never run ./...", &[]),
-            Some("FOO=1 rtk golangci-lint --color never run ./...".into())
+            Some("FOO=1 obliterate golangci-lint --color never run ./...".into())
         );
     }
 
@@ -2514,7 +2514,7 @@ mod tests {
     fn test_rewrite_env_prefixed_golangci_lint_with_inline_value_flag_before_run() {
         assert_eq!(
             rewrite_command_no_prefixes("FOO=1 golangci-lint --color=never run ./...", &[]),
-            Some("FOO=1 rtk golangci-lint --color=never run ./...".into())
+            Some("FOO=1 obliterate golangci-lint --color=never run ./...".into())
         );
     }
 
@@ -2583,7 +2583,7 @@ mod tests {
                 matches!(
                     classify_command(command),
                     Classification::Supported {
-                        rtk_equivalent: "obliterate lint",
+                        obliterate_equivalent: "obliterate lint",
                         ..
                     }
                 ),
@@ -2687,7 +2687,7 @@ mod tests {
                 matches!(
                     classify_command(command),
                     Classification::Supported {
-                        rtk_equivalent: "obliterate jest",
+                        obliterate_equivalent: "obliterate jest",
                         ..
                     }
                 ),
@@ -2780,7 +2780,7 @@ mod tests {
                 matches!(
                     classify_command(command),
                     Classification::Supported {
-                        rtk_equivalent: "obliterate vitest",
+                        obliterate_equivalent: "obliterate vitest",
                         ..
                     }
                 ),
@@ -2858,7 +2858,7 @@ mod tests {
                 matches!(
                     classify_command(format!("{command} migrate dev").as_str()),
                     Classification::Supported {
-                        rtk_equivalent: "obliterate prisma",
+                        obliterate_equivalent: "obliterate prisma",
                         ..
                     }
                 ),
@@ -2988,7 +2988,7 @@ mod tests {
         assert!(matches!(
             classify_command("./gradlew assembleDebug"),
             Classification::Supported {
-                rtk_equivalent: "obliterate gradlew",
+                obliterate_equivalent: "obliterate gradlew",
                 ..
             }
         ));
@@ -2999,7 +2999,7 @@ mod tests {
         assert!(matches!(
             classify_command("gradlew build"),
             Classification::Supported {
-                rtk_equivalent: "obliterate gradlew",
+                obliterate_equivalent: "obliterate gradlew",
                 ..
             }
         ));
@@ -3010,7 +3010,7 @@ mod tests {
         assert!(matches!(
             classify_command("gradlew.bat clean"),
             Classification::Supported {
-                rtk_equivalent: "obliterate gradlew",
+                obliterate_equivalent: "obliterate gradlew",
                 ..
             }
         ));
@@ -3021,7 +3021,7 @@ mod tests {
         assert!(matches!(
             classify_command("gradle build"),
             Classification::Supported {
-                rtk_equivalent: "obliterate gradlew",
+                obliterate_equivalent: "obliterate gradlew",
                 ..
             }
         ));
@@ -3064,11 +3064,51 @@ mod tests {
         assert_eq!(
             classify_command("./gradlew test"),
             Classification::Supported {
-                rtk_equivalent: "obliterate gradlew",
+                obliterate_equivalent: "obliterate gradlew",
                 category: "Build",
                 estimated_savings_pct: 90.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
+        );
+    }
+
+    // --- Maven ---
+
+    #[test]
+    fn test_classify_mvn_verify() {
+        assert!(matches!(
+            classify_command("mvn verify"),
+            Classification::Supported {
+                obliterate_equivalent: "obliterate mvn",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_classify_mvn_dependency_tree() {
+        assert!(matches!(
+            classify_command("mvn dependency:tree"),
+            Classification::Supported {
+                obliterate_equivalent: "obliterate mvn",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_rewrite_mvn_verify() {
+        assert_eq!(
+            rewrite_command_no_prefixes("mvn verify", &[]),
+            Some("obliterate mvn verify".into())
+        );
+    }
+
+    #[test]
+    fn test_rewrite_mvn_dependency_tree() {
+        assert_eq!(
+            rewrite_command_no_prefixes("mvn dependency:tree", &[]),
+            Some("obliterate mvn dependency:tree".into())
         );
     }
 
@@ -3079,7 +3119,7 @@ mod tests {
         // `||` fallback: left rewritten, right rewritten
         assert_eq!(
             rewrite_command_no_prefixes("cargo test || cargo build", &[]),
-            Some("obliterate cargo test || rtk cargo build".into())
+            Some("obliterate cargo test || obliterate cargo build".into())
         );
     }
 
@@ -3087,7 +3127,7 @@ mod tests {
     fn test_rewrite_compound_semicolon() {
         assert_eq!(
             rewrite_command_no_prefixes("git status; cargo test", &[]),
-            Some("obliterate git status; rtk cargo test".into())
+            Some("obliterate git status; obliterate cargo test".into())
         );
     }
 
@@ -3116,7 +3156,7 @@ mod tests {
                 &[]
             ),
             Some(
-                "obliterate cargo fmt --all && rtk cargo clippy && rtk cargo test && rtk git status"
+                "obliterate cargo fmt --all && obliterate cargo clippy && obliterate cargo test && obliterate git status"
                     .into()
             )
         );
@@ -3143,7 +3183,7 @@ mod tests {
     fn test_rewrite_sudo_docker() {
         assert_eq!(
             rewrite_command_no_prefixes("sudo docker ps", &[]),
-            Some("sudo rtk docker ps".into())
+            Some("sudo obliterate docker ps".into())
         );
     }
 
@@ -3151,7 +3191,7 @@ mod tests {
     fn test_rewrite_env_var_prefix() {
         assert_eq!(
             rewrite_command_no_prefixes("GIT_SSH_COMMAND=ssh git push origin main", &[]),
-            Some("GIT_SSH_COMMAND=ssh rtk git push origin main".into())
+            Some("GIT_SSH_COMMAND=ssh obliterate git push origin main".into())
         );
     }
 
@@ -3171,18 +3211,18 @@ mod tests {
             assert!(
                 !rule.pattern.is_empty(),
                 "Rule '{}' has empty pattern",
-                rule.rtk_cmd
+                rule.obliterate_cmd
             );
-            assert!(!rule.rtk_cmd.is_empty(), "Rule with empty rtk_cmd found");
+            assert!(!rule.obliterate_cmd.is_empty(), "Rule with empty obliterate_cmd found");
             assert!(
-                rule.rtk_cmd.starts_with("obliterate "),
-                "rtk_cmd '{}' must start with 'rtk '",
-                rule.rtk_cmd
+                rule.obliterate_cmd.starts_with("obliterate "),
+                "obliterate_cmd '{}' must start with 'obliterate '",
+                rule.obliterate_cmd
             );
             assert!(
                 !rule.rewrite_prefixes.is_empty(),
                 "Rule '{}' has no rewrite_prefixes",
-                rule.rtk_cmd
+                rule.obliterate_cmd
             );
         }
     }
@@ -3287,7 +3327,7 @@ mod tests {
             assert!(
                 Regex::new(rule.pattern).is_ok(),
                 "RULES[{i}] ({}) has invalid pattern '{}'",
-                rule.rtk_cmd,
+                rule.obliterate_cmd,
                 rule.pattern
             );
         }
@@ -3335,31 +3375,31 @@ mod tests {
         );
     }
 
-    // --- #508: RTK_DISABLED detection helpers ---
+    // --- #508: OBLITERATE_DISABLED detection helpers ---
 
     #[test]
-    fn test_cmd_has_rtk_disabled_prefix() {
-        assert!(cmd_has_rtk_disabled_prefix("RTK_DISABLED=1 git status"));
-        assert!(cmd_has_rtk_disabled_prefix(
-            "FOO=1 RTK_DISABLED=1 cargo test"
+    fn test_cmd_has_obliterate_disabled_prefix() {
+        assert!(cmd_has_obliterate_disabled_prefix("OBLITERATE_DISABLED=1 git status"));
+        assert!(cmd_has_obliterate_disabled_prefix(
+            "FOO=1 OBLITERATE_DISABLED=1 cargo test"
         ));
-        assert!(cmd_has_rtk_disabled_prefix(
-            "RTK_DISABLED=true git log --oneline"
+        assert!(cmd_has_obliterate_disabled_prefix(
+            "OBLITERATE_DISABLED=true git log --oneline"
         ));
-        assert!(!cmd_has_rtk_disabled_prefix("git status"));
-        assert!(!cmd_has_rtk_disabled_prefix("obliterate git status"));
-        assert!(!cmd_has_rtk_disabled_prefix("SOME_VAR=1 git status"));
+        assert!(!cmd_has_obliterate_disabled_prefix("git status"));
+        assert!(!cmd_has_obliterate_disabled_prefix("obliterate git status"));
+        assert!(!cmd_has_obliterate_disabled_prefix("SOME_VAR=1 git status"));
     }
 
     #[test]
     fn test_strip_disabled_prefix() {
         assert_eq!(
-            strip_disabled_prefix("RTK_DISABLED=1 git status"),
-            ("RTK_DISABLED=1 ", "git status")
+            strip_disabled_prefix("OBLITERATE_DISABLED=1 git status"),
+            ("OBLITERATE_DISABLED=1 ", "git status")
         );
         assert_eq!(
-            strip_disabled_prefix("FOO=1 RTK_DISABLED=1 cargo test"),
-            ("FOO=1 RTK_DISABLED=1 ", "cargo test")
+            strip_disabled_prefix("FOO=1 OBLITERATE_DISABLED=1 cargo test"),
+            ("FOO=1 OBLITERATE_DISABLED=1 ", "cargo test")
         );
         assert_eq!(strip_disabled_prefix("git status"), ("", "git status"));
     }
@@ -3371,10 +3411,10 @@ mod tests {
         assert_eq!(
             classify_command("/usr/bin/grep -rni pattern"),
             Classification::Supported {
-                rtk_equivalent: "obliterate grep",
+                obliterate_equivalent: "obliterate grep",
                 category: "Files",
                 estimated_savings_pct: 75.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -3384,10 +3424,10 @@ mod tests {
         assert_eq!(
             classify_command("/bin/ls -la"),
             Classification::Supported {
-                rtk_equivalent: "obliterate ls",
+                obliterate_equivalent: "obliterate ls",
                 category: "Files",
                 estimated_savings_pct: 65.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -3397,10 +3437,10 @@ mod tests {
         assert_eq!(
             classify_command("/usr/local/bin/git status"),
             Classification::Supported {
-                rtk_equivalent: "obliterate git",
+                obliterate_equivalent: "obliterate git",
                 category: "Git",
                 estimated_savings_pct: 70.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -3411,10 +3451,10 @@ mod tests {
         assert_eq!(
             classify_command("/usr/bin/find ."),
             Classification::Supported {
-                rtk_equivalent: "obliterate find",
+                obliterate_equivalent: "obliterate find",
                 category: "Files",
                 estimated_savings_pct: 70.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -3434,10 +3474,10 @@ mod tests {
         assert_eq!(
             classify_command("git -C /tmp status"),
             Classification::Supported {
-                rtk_equivalent: "obliterate git",
+                obliterate_equivalent: "obliterate git",
                 category: "Git",
                 estimated_savings_pct: 70.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -3447,10 +3487,10 @@ mod tests {
         assert_eq!(
             classify_command("git --no-pager log -5"),
             Classification::Supported {
-                rtk_equivalent: "obliterate git",
+                obliterate_equivalent: "obliterate git",
                 category: "Git",
                 estimated_savings_pct: 70.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -3460,10 +3500,10 @@ mod tests {
         assert_eq!(
             classify_command("git --git-dir /tmp/.git status"),
             Classification::Supported {
-                rtk_equivalent: "obliterate git",
+                obliterate_equivalent: "obliterate git",
                 category: "Git",
                 estimated_savings_pct: 70.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -3526,10 +3566,10 @@ mod tests {
         assert_eq!(
             classify_command("wc -l src/main.rs"),
             Classification::Supported {
-                rtk_equivalent: "obliterate wc",
+                obliterate_equivalent: "obliterate wc",
                 category: "Files",
                 estimated_savings_pct: 60.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -3539,10 +3579,10 @@ mod tests {
         assert_eq!(
             classify_command("wc src/*.rs"),
             Classification::Supported {
-                rtk_equivalent: "obliterate wc",
+                obliterate_equivalent: "obliterate wc",
                 category: "Files",
                 estimated_savings_pct: 60.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -3568,10 +3608,10 @@ mod tests {
         assert_eq!(
             classify_command("git log $(git rev-parse HEAD~1)"),
             Classification::Supported {
-                rtk_equivalent: "obliterate git",
+                obliterate_equivalent: "obliterate git",
                 category: "Git",
                 estimated_savings_pct: 70.0,
-                status: RtkStatus::Existing,
+                status: ObliterateStatus::Existing,
             }
         );
     }
@@ -3596,7 +3636,7 @@ mod tests {
     fn test_shell_prefix_noglob() {
         assert_eq!(
             rewrite_command_no_prefixes("noglob git status", &[]),
-            Some("noglob rtk git status".into())
+            Some("noglob obliterate git status".into())
         );
     }
 
@@ -3604,7 +3644,7 @@ mod tests {
     fn test_shell_prefix_command() {
         assert_eq!(
             rewrite_command_no_prefixes("command git status", &[]),
-            Some("command rtk git status".into())
+            Some("command obliterate git status".into())
         );
     }
 
@@ -3612,15 +3652,15 @@ mod tests {
     fn test_shell_prefix_builtin_exec_nocorrect() {
         assert_eq!(
             rewrite_command_no_prefixes("builtin git status", &[]),
-            Some("builtin rtk git status".into())
+            Some("builtin obliterate git status".into())
         );
         assert_eq!(
             rewrite_command_no_prefixes("exec git status", &[]),
-            Some("exec rtk git status".into())
+            Some("exec obliterate git status".into())
         );
         assert_eq!(
             rewrite_command_no_prefixes("nocorrect git status", &[]),
-            Some("nocorrect rtk git status".into())
+            Some("nocorrect obliterate git status".into())
         );
     }
 
@@ -3639,7 +3679,7 @@ mod tests {
         let prefixes = vec!["shadowenv exec --".to_string()];
         assert_eq!(
             super::rewrite_command("shadowenv exec -- git status", &[], &prefixes),
-            Some("shadowenv exec -- rtk git status".into())
+            Some("shadowenv exec -- obliterate git status".into())
         );
     }
 
@@ -3648,7 +3688,7 @@ mod tests {
         let prefixes = vec!["shadowenv exec --".to_string()];
         assert_eq!(
             super::rewrite_command("shadowenv exec -- cargo test", &[], &prefixes),
-            Some("shadowenv exec -- rtk cargo test".into())
+            Some("shadowenv exec -- obliterate cargo test".into())
         );
     }
 
@@ -3677,7 +3717,7 @@ mod tests {
         let prefixes = vec!["shadowenv exec --".to_string()];
         assert_eq!(
             super::rewrite_command("noglob shadowenv exec -- git status", &[], &prefixes),
-            Some("noglob shadowenv exec -- rtk git status".into())
+            Some("noglob shadowenv exec -- obliterate git status".into())
         );
     }
 
@@ -3686,7 +3726,7 @@ mod tests {
         let prefixes = vec!["bundle exec".to_string()];
         assert_eq!(
             super::rewrite_command("RAILS_ENV=test bundle exec git status", &[], &prefixes),
-            Some("RAILS_ENV=test bundle exec rtk git status".into())
+            Some("RAILS_ENV=test bundle exec obliterate git status".into())
         );
     }
 
@@ -3694,7 +3734,7 @@ mod tests {
     fn test_env_prefix_composed_with_builtin() {
         assert_eq!(
             rewrite_command_no_prefixes("sudo noglob git status", &[]),
-            Some("sudo noglob rtk git status".into())
+            Some("sudo noglob obliterate git status".into())
         );
     }
 
@@ -3703,7 +3743,7 @@ mod tests {
         let prefixes = vec!["shadowenv exec --".to_string(), "direnv exec .".to_string()];
         assert_eq!(
             super::rewrite_command("direnv exec . git status", &[], &prefixes),
-            Some("direnv exec . rtk git status".into())
+            Some("direnv exec . obliterate git status".into())
         );
     }
 
@@ -3726,7 +3766,7 @@ mod tests {
         let prefixes = vec!["docker".to_string(), "docker exec app".to_string()];
         assert_eq!(
             super::rewrite_command("docker exec app git status", &[], &prefixes),
-            Some("docker exec app rtk git status".into())
+            Some("docker exec app obliterate git status".into())
         );
     }
 
@@ -3769,7 +3809,7 @@ mod tests {
                 &[],
                 &prefixes
             ),
-            Some("shadowenv exec -- rtk git status && shadowenv exec -- rtk cargo test".into())
+            Some("shadowenv exec -- obliterate git status && shadowenv exec -- obliterate cargo test".into())
         );
     }
 
@@ -3838,7 +3878,7 @@ mod tests {
     fn test_rewrite_pipe_then_and() {
         assert_eq!(
             rewrite_command_no_prefixes("git log | head -5 && git stash", &[]),
-            Some("obliterate git log | head -5 && rtk git stash".into())
+            Some("obliterate git log | head -5 && obliterate git stash".into())
         );
     }
 
@@ -3846,7 +3886,7 @@ mod tests {
     fn test_rewrite_pipe_then_semicolon() {
         assert_eq!(
             rewrite_command_no_prefixes("cargo test | head; git status", &[]),
-            Some("obliterate cargo test | head; rtk git status".into())
+            Some("obliterate cargo test | head; obliterate git status".into())
         );
     }
 
@@ -3854,7 +3894,7 @@ mod tests {
     fn test_rewrite_pipe_then_or() {
         assert_eq!(
             rewrite_command_no_prefixes("cargo test | grep FAIL || git stash", &[]),
-            Some("obliterate cargo test | grep FAIL || rtk git stash".into())
+            Some("obliterate cargo test | grep FAIL || obliterate git stash".into())
         );
     }
 
@@ -3865,7 +3905,7 @@ mod tests {
                 "RUST_BACKTRACE=1 cargo test 2>&1 | grep FAILED && git stash",
                 &[]
             ),
-            Some("RUST_BACKTRACE=1 rtk cargo test 2>&1 | grep FAILED && rtk git stash".into())
+            Some("RUST_BACKTRACE=1 obliterate cargo test 2>&1 | grep FAILED && obliterate git stash".into())
         );
     }
 
@@ -3873,7 +3913,7 @@ mod tests {
     fn test_rewrite_and_then_pipe() {
         assert_eq!(
             rewrite_command_no_prefixes("git status && cargo test | grep FAIL", &[]),
-            Some("obliterate git status && rtk cargo test | grep FAIL".into())
+            Some("obliterate git status && obliterate cargo test | grep FAIL".into())
         );
     }
 
@@ -3881,7 +3921,7 @@ mod tests {
     fn test_rewrite_multi_pipe_then_and() {
         assert_eq!(
             rewrite_command_no_prefixes("git log | head | tail && git status", &[]),
-            Some("obliterate git log | head | tail && rtk git status".into())
+            Some("obliterate git log | head | tail && obliterate git status".into())
         );
     }
 }

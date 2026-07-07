@@ -1,4 +1,4 @@
-//! Data types for reporting which commands RTK can and cannot optimize.
+//! Data types for reporting which commands Obliterate can and cannot optimize.
 
 use crate::hooks::constants::{
     CURSOR_DIR, HERMES_DIR, HERMES_PLUGINS_SUBDIR, HERMES_PLUGIN_MANIFEST_FILE, HERMES_PLUGIN_NAME,
@@ -7,40 +7,40 @@ use crate::hooks::constants::{
 use serde::Serialize;
 use std::path::Path;
 
-/// RTK support status for a command.
+/// Obliterate support status for a command.
 #[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
-pub enum RtkStatus {
+pub enum ObliterateStatus {
     /// Dedicated handler with filtering (e.g., git status → git.rs:run_status())
     Existing,
     /// Works via external_subcommand passthrough, no filtering (e.g., cargo fmt → Other)
     Passthrough,
-    /// RTK doesn't handle this command at all
+    /// Obliterate doesn't handle this command at all
     NotSupported,
 }
 
-impl RtkStatus {
+impl ObliterateStatus {
     pub fn as_str(&self) -> &'static str {
         match self {
-            RtkStatus::Existing => "existing",
-            RtkStatus::Passthrough => "passthrough",
-            RtkStatus::NotSupported => "not-supported",
+            ObliterateStatus::Existing => "existing",
+            ObliterateStatus::Passthrough => "passthrough",
+            ObliterateStatus::NotSupported => "not-supported",
         }
     }
 }
 
-/// A supported command that RTK already handles.
+/// A supported command that Obliterate already handles.
 #[derive(Debug, Serialize)]
 pub struct SupportedEntry {
     pub command: String,
     pub count: usize,
-    pub rtk_equivalent: &'static str,
+    pub obliterate_equivalent: &'static str,
     pub category: &'static str,
     pub estimated_savings_tokens: usize,
     pub estimated_savings_pct: f64,
-    pub rtk_status: RtkStatus,
+    pub obliterate_status: ObliterateStatus,
 }
 
-/// An unsupported command not yet handled by RTK.
+/// An unsupported command not yet handled by Obliterate.
 #[derive(Debug, Serialize)]
 pub struct UnsupportedEntry {
     pub base_command: String,
@@ -83,13 +83,13 @@ impl AgentIntegrationStatus {
 pub struct DiscoverReport {
     pub sessions_scanned: usize,
     pub total_commands: usize,
-    pub already_rtk: usize,
+    pub already_obliterate: usize,
     pub since_days: u64,
     pub supported: Vec<SupportedEntry>,
     pub unsupported: Vec<UnsupportedEntry>,
     pub parse_errors: usize,
-    pub rtk_disabled_count: usize,
-    pub rtk_disabled_examples: Vec<String>,
+    pub obliterate_disabled_count: usize,
+    pub obliterate_disabled_examples: Vec<String>,
     pub agent_status: AgentIntegrationStatus,
 }
 
@@ -110,7 +110,7 @@ impl DiscoverReport {
 pub fn format_text(report: &DiscoverReport, limit: usize, verbose: bool) -> String {
     let mut out = String::with_capacity(2048);
 
-    out.push_str("RTK Discover -- Savings Opportunities\n");
+    out.push_str("Obliterate Discover -- Savings Opportunities\n");
     out.push_str(&"=".repeat(52));
     out.push('\n');
     out.push_str(&format!(
@@ -118,29 +118,29 @@ pub fn format_text(report: &DiscoverReport, limit: usize, verbose: bool) -> Stri
         report.sessions_scanned, report.since_days, report.total_commands
     ));
     out.push_str(&format!(
-        "Already using RTK: {} commands ({:.1}%)\n",
-        report.already_rtk,
+        "Already using Obliterate: {} commands ({:.1}%)\n",
+        report.already_obliterate,
         if report.total_commands > 0 {
-            report.already_rtk as f64 * 100.0 / report.total_commands as f64
+            report.already_obliterate as f64 * 100.0 / report.total_commands as f64
         } else {
             0.0
         }
     ));
 
     if report.supported.is_empty() && report.unsupported.is_empty() {
-        out.push_str("\nNo missed savings found. RTK usage looks good!\n");
+        out.push_str("\nNo missed savings found. Obliterate usage looks good!\n");
         append_agent_notes(&mut out, report.agent_status);
         return out;
     }
 
     // Missed savings
     if !report.supported.is_empty() {
-        out.push_str("\nMISSED SAVINGS -- Commands RTK already handles\n");
+        out.push_str("\nMISSED SAVINGS -- Commands Obliterate already handles\n");
         out.push_str(&"-".repeat(72));
         out.push('\n');
         out.push_str(&format!(
             "{:<24} {:>5}    {:<18} {:<13} {:>12}\n",
-            "Command", "Count", "RTK Equivalent", "Status", "Est. Savings"
+            "Command", "Count", "Obliterate Equivalent", "Status", "Est. Savings"
         ));
 
         for entry in report.supported.iter().take(limit) {
@@ -148,8 +148,8 @@ pub fn format_text(report: &DiscoverReport, limit: usize, verbose: bool) -> Stri
                 "{:<24} {:>5}    {:<18} {:<13} ~{}\n",
                 truncate_str(&entry.command, 23),
                 entry.count,
-                entry.rtk_equivalent,
-                entry.rtk_status.as_str(),
+                entry.obliterate_equivalent,
+                entry.obliterate_status.as_str(),
                 format_tokens(entry.estimated_savings_tokens),
             ));
         }
@@ -184,22 +184,22 @@ pub fn format_text(report: &DiscoverReport, limit: usize, verbose: bool) -> Stri
 
         out.push_str(&"-".repeat(52));
         out.push('\n');
-        out.push_str("-> github.com/rtk-ai/rtk/issues\n");
+        out.push_str("-> github.com/obliterate-ai/obliterate/issues\n");
     }
 
-    // RTK_DISABLED bypass warning
-    if report.rtk_disabled_count > 0 {
+    // OBLITERATE_DISABLED bypass warning
+    if report.obliterate_disabled_count > 0 {
         out.push_str(&format!(
-            "\nRTK_DISABLED BYPASS -- {} commands ran without filtering\n",
-            report.rtk_disabled_count
+            "\nOBLITERATE_DISABLED BYPASS -- {} commands ran without filtering\n",
+            report.obliterate_disabled_count
         ));
         out.push_str(&"-".repeat(72));
         out.push('\n');
-        out.push_str("These commands used RTK_DISABLED=1 unnecessarily:\n");
-        if !report.rtk_disabled_examples.is_empty() {
-            out.push_str(&format!("  {}\n", report.rtk_disabled_examples.join(", ")));
+        out.push_str("These commands used OBLITERATE_DISABLED=1 unnecessarily:\n");
+        if !report.obliterate_disabled_examples.is_empty() {
+            out.push_str(&format!("  {}\n", report.obliterate_disabled_examples.join(", ")));
         }
-        out.push_str("-> Remove RTK_DISABLED=1 to recover token savings\n");
+        out.push_str("-> Remove OBLITERATE_DISABLED=1 to recover token savings\n");
     }
 
     out.push_str("\n~estimated from tool_result output sizes\n");
@@ -256,17 +256,17 @@ fn truncate_str(s: &str, max: usize) -> String {
 mod tests {
     use super::*;
 
-    fn make_report(total_commands: usize, already_rtk: usize) -> DiscoverReport {
+    fn make_report(total_commands: usize, already_obliterate: usize) -> DiscoverReport {
         DiscoverReport {
             sessions_scanned: 1,
             total_commands,
-            already_rtk,
+            already_obliterate,
             since_days: 30,
             supported: vec![],
             unsupported: vec![],
             parse_errors: 0,
-            rtk_disabled_count: 0,
-            rtk_disabled_examples: vec![],
+            obliterate_disabled_count: 0,
+            obliterate_disabled_examples: vec![],
             agent_status: AgentIntegrationStatus::default(),
         }
     }
@@ -274,7 +274,7 @@ mod tests {
     // B6 regression: integer division truncated small percentages to 0%.
     // Example: 3/1000 = 0% (old bug), should be "0.3%".
     #[test]
-    fn test_already_rtk_percent_shows_decimal() {
+    fn test_already_obliterate_percent_shows_decimal() {
         let report = make_report(1000, 3);
         let output = format_text(&report, 10, false);
         // "0.3%" must appear; old code would print "0%"
@@ -292,7 +292,7 @@ mod tests {
 
     // Edge case: 0/0 must not divide-by-zero.
     #[test]
-    fn test_already_rtk_percent_zero_total() {
+    fn test_already_obliterate_percent_zero_total() {
         let report = make_report(0, 0);
         let output = format_text(&report, 10, false);
         assert!(output.contains("0 commands (0.0%)"));
@@ -300,7 +300,7 @@ mod tests {
 
     // Full percent: 1000/1000 = 100.0%
     #[test]
-    fn test_already_rtk_percent_full() {
+    fn test_already_obliterate_percent_full() {
         let report = make_report(1000, 1000);
         let output = format_text(&report, 10, false);
         assert!(output.contains("100.0%"));
@@ -316,7 +316,7 @@ mod tests {
             .join(HERMES_PLUGIN_NAME)
             .join(HERMES_PLUGIN_MANIFEST_FILE);
         std::fs::create_dir_all(manifest.parent().unwrap()).unwrap();
-        std::fs::write(&manifest, "name: rtk-rewrite\n").unwrap();
+        std::fs::write(&manifest, "name: obliterate-rewrite\n").unwrap();
 
         let status = AgentIntegrationStatus::detect_from_home(temp_home.path());
 

@@ -1,4 +1,4 @@
-//! Scans AI coding sessions to find commands that could benefit from RTK filtering.
+//! Scans AI coding sessions to find commands that could benefit from Obliterate filtering.
 
 pub mod lexer;
 pub mod provider;
@@ -16,11 +16,11 @@ use registry::{
 };
 use report::{DiscoverReport, SupportedEntry, UnsupportedEntry};
 
-use crate::discover::registry::prefix_contains_rtk_disabled;
+use crate::discover::registry::prefix_contains_obliterate_disabled;
 
 /// Aggregation bucket for supported commands.
 struct SupportedBucket {
-    rtk_equivalent: &'static str,
+    obliterate_equivalent: &'static str,
     category: &'static str,
     count: usize,
     /// Total estimated tokens *saved* (post-filter). Used for the "Est. Savings" column.
@@ -73,10 +73,10 @@ pub fn run(
     }
 
     let mut total_commands: usize = 0;
-    let mut already_rtk: usize = 0;
+    let mut already_obliterate: usize = 0;
     let mut parse_errors: usize = 0;
-    let mut rtk_disabled_count: usize = 0;
-    let mut rtk_disabled_cmds: HashMap<String, usize> = HashMap::new();
+    let mut obliterate_disabled_count: usize = 0;
+    let mut obliterate_disabled_cmds: HashMap<String, usize> = HashMap::new();
     let mut supported_map: HashMap<&'static str, SupportedBucket> = HashMap::new();
     let mut unsupported_map: HashMap<String, UnsupportedBucket> = HashMap::new();
 
@@ -97,18 +97,18 @@ pub fn run(
             for part in parts {
                 total_commands += 1;
 
-                // Detect RTK_DISABLED= bypass before classification
+                // Detect OBLITERATE_DISABLED= bypass before classification
                 let (env_prefix, actual_cmd) = strip_disabled_prefix(part);
-                if prefix_contains_rtk_disabled(env_prefix) {
-                    // Only count if the underlying command is one RTK supports
+                if prefix_contains_obliterate_disabled(env_prefix) {
+                    // Only count if the underlying command is one Obliterate supports
                     match classify_command(actual_cmd) {
                         Classification::Supported { .. } => {
-                            rtk_disabled_count += 1;
+                            obliterate_disabled_count += 1;
                             let display = truncate_command(actual_cmd);
-                            *rtk_disabled_cmds.entry(display).or_insert(0) += 1;
+                            *obliterate_disabled_cmds.entry(display).or_insert(0) += 1;
                         }
                         _ => {
-                            // RTK_DISABLED on unsupported/ignored command — not interesting
+                            // OBLITERATE_DISABLED on unsupported/ignored command — not interesting
                         }
                     }
                     continue;
@@ -116,14 +116,14 @@ pub fn run(
 
                 match classify_command(part) {
                     Classification::Supported {
-                        rtk_equivalent,
+                        obliterate_equivalent,
                         category,
                         estimated_savings_pct,
                         status,
                     } => {
-                        let bucket = supported_map.entry(rtk_equivalent).or_insert_with(|| {
+                        let bucket = supported_map.entry(obliterate_equivalent).or_insert_with(|| {
                             SupportedBucket {
-                                rtk_equivalent,
+                                obliterate_equivalent,
                                 category,
                                 count: 0,
                                 total_output_tokens: 0,
@@ -169,9 +169,9 @@ pub fn run(
                         bucket.count += 1;
                     }
                     Classification::Ignored => {
-                        // Check if it starts with "rtk "
-                        if part.trim().starts_with("rtk ") {
-                            already_rtk += 1;
+                        // Check if it starts with "obliterate "
+                        if part.trim().starts_with("obliterate ") {
+                            already_obliterate += 1;
                         }
                         // Otherwise just skip
                     }
@@ -195,16 +195,16 @@ pub fn run(
                         let cmd = name[..colon_pos].to_string();
                         let status_str = &name[colon_pos + 1..];
                         let status = match status_str {
-                            "Passthrough" => report::RtkStatus::Passthrough,
-                            "NotSupported" => report::RtkStatus::NotSupported,
-                            _ => report::RtkStatus::Existing,
+                            "Passthrough" => report::ObliterateStatus::Passthrough,
+                            "NotSupported" => report::ObliterateStatus::NotSupported,
+                            _ => report::ObliterateStatus::Existing,
                         };
                         (cmd, status)
                     } else {
-                        (name, report::RtkStatus::Existing)
+                        (name, report::ObliterateStatus::Existing)
                     }
                 })
-                .unwrap_or_else(|| (String::new(), report::RtkStatus::Existing));
+                .unwrap_or_else(|| (String::new(), report::ObliterateStatus::Existing));
 
             // Derive the effective savings rate from accumulated totals rather than
             // using the first-seen sub-command's rate. This gives a weighted average
@@ -218,11 +218,11 @@ pub fn run(
             SupportedEntry {
                 command: command_with_status,
                 count: bucket.count,
-                rtk_equivalent: bucket.rtk_equivalent,
+                obliterate_equivalent: bucket.obliterate_equivalent,
                 category: bucket.category,
                 estimated_savings_tokens: bucket.total_output_tokens,
                 estimated_savings_pct: effective_savings_pct,
-                rtk_status: status,
+                obliterate_status: status,
             }
         })
         .collect();
@@ -242,9 +242,9 @@ pub fn run(
     // Sort by count descending
     unsupported.sort_by_key(|b| std::cmp::Reverse(b.count));
 
-    // Build RTK_DISABLED examples sorted by frequency (top 5)
-    let rtk_disabled_examples: Vec<String> = {
-        let mut sorted: Vec<_> = rtk_disabled_cmds.into_iter().collect();
+    // Build OBLITERATE_DISABLED examples sorted by frequency (top 5)
+    let obliterate_disabled_examples: Vec<String> = {
+        let mut sorted: Vec<_> = obliterate_disabled_cmds.into_iter().collect();
         sorted.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
         sorted
             .into_iter()
@@ -256,13 +256,13 @@ pub fn run(
     let report = DiscoverReport {
         sessions_scanned: sessions.len(),
         total_commands,
-        already_rtk,
+        already_obliterate,
         since_days,
         supported,
         unsupported,
         parse_errors,
-        rtk_disabled_count,
-        rtk_disabled_examples,
+        obliterate_disabled_count,
+        obliterate_disabled_examples,
         agent_status: report::AgentIntegrationStatus::detect(),
     };
 

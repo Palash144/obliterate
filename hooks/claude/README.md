@@ -5,20 +5,20 @@
 ## Specifics
 
 - Shell-based `PreToolUse` hook -- requires `jq` for JSON parsing
-- Returns `updatedInput` JSON for transparent command rewrite (agent doesn't know RTK is involved)
-- Exits silently (exit 0) on any failure: jq missing, rtk missing, rtk too old (< 0.23.0), no match
-- Version guard checks `rtk --version` against minimum 0.23.0
-- `rtk-awareness.md` is a slim 10-line instructions file embedded into CLAUDE.md by `rtk init`
+- Returns `updatedInput` JSON for transparent command rewrite (agent doesn't know Obliterate is involved)
+- Exits silently (exit 0) on any failure: jq missing, obliterate missing, obliterate too old (< 0.23.0), no match
+- Version guard checks `obliterate --version` against minimum 0.23.0
+- `obliterate-awareness.md` is a slim 10-line instructions file embedded into CLAUDE.md by `obliterate init`
 
 ## Testing
 
 ```bash
 # Run the full test suite (60+ assertions)
-bash hooks/test-rtk-rewrite.sh
+bash hooks/test-obliterate-rewrite.sh
 
 # Test against a specific hook path
-HOOK=/path/to/rtk-rewrite.sh bash hooks/test-rtk-rewrite.sh
+HOOK=/path/to/obliterate-rewrite.sh bash hooks/test-obliterate-rewrite.sh
 
 # Enable audit logging during testing
-RTK_HOOK_AUDIT=1 RTK_AUDIT_DIR=/tmp bash hooks/test-rtk-rewrite.sh
+OBLITERATE_HOOK_AUDIT=1 OBLITERATE_AUDIT_DIR=/tmp bash hooks/test-obliterate-rewrite.sh
 ```
