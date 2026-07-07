@@ -3918,7 +3918,6 @@ fn run_copilot_at(base: &Path, global: bool, ctx: InitContext) -> Result<()> {
     // 1. Upsert Obliterate marker block in copilot-instructions.md (preserves user content).
     //    Done BEFORE writing the hook config so a malformed file aborts the install
     //    without leaving a stale hook on disk.
-    let instructions_path = github_dir.join("copilot-instructions.md");
     write_obliterate_block(
         &instructions_path,
         COPILOT_INSTRUCTIONS,
@@ -6300,66 +6299,6 @@ mod tests {
             assert!(
                 hook_path.exists(),
                 "Global install must create ~/.copilot/hooks/obliterate-rewrite.json"
-            );
-        });
-    }
-
-    #[test]
-    fn test_copilot_init_global_scope_writes_to_copilot_home() {
-        let temp = TempDir::new().unwrap();
-        with_copilot_dir_override(&temp, |copilot_dir| {
-            run_copilot(true, InitContext::default()).unwrap();
-
-            let instructions_path = copilot_dir.join("copilot-instructions.md");
-            let hook_path = copilot_dir.join("hooks").join("rtk-rewrite.json");
-
-            assert!(
-                instructions_path.exists(),
-                "Global install must create ~/.copilot/copilot-instructions.md"
-            );
-            assert!(
-                hook_path.exists(),
-                "Global install must create ~/.copilot/hooks/rtk-rewrite.json"
-            );
-        });
-    }
-
-    #[test]
-    fn test_copilot_init_global_scope_writes_to_copilot_home() {
-        let temp = TempDir::new().unwrap();
-        with_copilot_dir_override(&temp, |copilot_dir| {
-            run_copilot(true, InitContext::default()).unwrap();
-
-            let instructions_path = copilot_dir.join("copilot-instructions.md");
-            let hook_path = copilot_dir.join("hooks").join("obliterate-rewrite.json");
-
-            assert!(
-                instructions_path.exists(),
-                "Global install must create ~/.copilot/copilot-instructions.md"
-            );
-            assert!(
-                hook_path.exists(),
-                "Global install must create ~/.copilot/hooks/obliterate-rewrite.json"
-            );
-        });
-    }
-
-    #[test]
-    fn test_copilot_init_global_scope_writes_to_copilot_home() {
-        let temp = TempDir::new().unwrap();
-        with_copilot_dir_override(&temp, |copilot_dir| {
-            run_copilot(true, InitContext::default()).unwrap();
-
-            let instructions_path = copilot_dir.join("copilot-instructions.md");
-            let hook_path = copilot_dir.join("hooks").join("rtk-rewrite.json");
-
-            assert!(
-                instructions_path.exists(),
-                "Global install must create ~/.copilot/copilot-instructions.md"
-            );
-            assert!(
-                hook_path.exists(),
-                "Global install must create ~/.copilot/hooks/rtk-rewrite.json"
             );
         });
     }
