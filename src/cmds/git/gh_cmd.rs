@@ -108,7 +108,7 @@ fn filter_markdown_segment(text: &str) -> String {
     s
 }
 
-/// Check if args contain --json flag (user wants specific JSON fields, not RTK filtering)
+/// Check if args contain --json flag (user wants specific JSON fields, not OBLITERATE filtering)
 fn has_json_flag(args: &[String]) -> bool {
     args.iter().any(|a| a == "--json")
 }
@@ -181,7 +181,7 @@ where
 }
 
 pub fn run(subcommand: &str, args: &[String], verbose: u8, ultra_compact: bool) -> Result<i32> {
-    // When user explicitly passes --json, they want raw gh JSON output, not RTK filtering
+    // When user explicitly passes --json, they want raw gh JSON output, not OBLITERATE filtering
     if has_json_flag(args) {
         return run_passthrough("gh", subcommand, args);
     }
@@ -1040,20 +1040,20 @@ mod tests {
 
     #[test]
     fn test_extract_identifier_with_repo_flag_after() {
-        // gh issue view 185 -R rtk-ai/rtk
-        let args: Vec<String> = vec!["185".into(), "-R".into(), "rtk-ai/rtk".into()];
+        // gh issue view 185 -R obliterate-ai/obliterate
+        let args: Vec<String> = vec!["185".into(), "-R".into(), "obliterate-ai/obliterate".into()];
         let (id, extra) = extract_identifier_and_extra_args(&args).unwrap();
         assert_eq!(id, "185");
-        assert_eq!(extra, vec!["-R", "rtk-ai/rtk"]);
+        assert_eq!(extra, vec!["-R", "obliterate-ai/obliterate"]);
     }
 
     #[test]
     fn test_extract_identifier_with_repo_flag_before() {
-        // gh issue view -R rtk-ai/rtk 185
-        let args: Vec<String> = vec!["-R".into(), "rtk-ai/rtk".into(), "185".into()];
+        // gh issue view -R obliterate-ai/obliterate 185
+        let args: Vec<String> = vec!["-R".into(), "obliterate-ai/obliterate".into(), "185".into()];
         let (id, extra) = extract_identifier_and_extra_args(&args).unwrap();
         assert_eq!(id, "185");
-        assert_eq!(extra, vec!["-R", "rtk-ai/rtk"]);
+        assert_eq!(extra, vec!["-R", "obliterate-ai/obliterate"]);
     }
 
     #[test]
@@ -1073,7 +1073,7 @@ mod tests {
     #[test]
     fn test_extract_identifier_only_flags() {
         // No positional identifier, only flags
-        let args: Vec<String> = vec!["-R".into(), "rtk-ai/rtk".into()];
+        let args: Vec<String> = vec!["-R".into(), "obliterate-ai/obliterate".into()];
         assert!(extract_identifier_and_extra_args(&args).is_none());
     }
 
@@ -1417,8 +1417,8 @@ mod tests {
 
 Added smart markdown filtering for gh issue/pr view commands.
 
-[![CI](https://img.shields.io/github/actions/workflow/status/rtk-ai/rtk/ci.yml)](https://github.com/rtk-ai/rtk/actions)
-[![Coverage](https://img.shields.io/codecov/c/github/rtk-ai/rtk)](https://codecov.io/gh/rtk-ai/rtk)
+[![CI](https://img.shields.io/github/actions/workflow/status/obliterate-ai/obliterate/ci.yml)](https://github.com/obliterate-ai/obliterate/actions)
+[![Coverage](https://img.shields.io/codecov/c/github/obliterate-ai/obliterate)](https://codecov.io/gh/obliterate-ai/obliterate)
 
 ![screenshot](https://user-images.githubusercontent.com/123/screenshot.png)
 

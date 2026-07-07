@@ -1,4 +1,4 @@
-//! Sets up RTK hooks so AI coding agents automatically route commands through RTK.
+//! Sets up Obliterate hooks so AI coding agents automatically route commands through Obliterate.
 
 use anyhow::{Context, Result};
 use std::ffi::OsString;
@@ -22,19 +22,19 @@ use super::constants::{
 use super::integrity;
 
 // Embedded OpenCode plugin (auto-rewrite)
-const OPENCODE_PLUGIN: &str = include_str!("../../hooks/opencode/rtk.ts");
+const OPENCODE_PLUGIN: &str = include_str!("../../hooks/opencode/obliterate.ts");
 
 // Embedded Pi extension (auto-rewrite)
-const PI_PLUGIN: &str = include_str!("../../hooks/pi/rtk.ts");
+const PI_PLUGIN: &str = include_str!("../../hooks/pi/obliterate.ts");
 
-// Embedded slim RTK awareness instructions
-const RTK_SLIM: &str = include_str!("../../hooks/claude/rtk-awareness.md");
-const RTK_SLIM_CODEX: &str = include_str!("../../hooks/codex/rtk-awareness.md");
+// Embedded slim Obliterate awareness instructions
+const OBLITERATE_SLIM: &str = include_str!("../../hooks/claude/obliterate-awareness.md");
+const OBLITERATE_SLIM_CODEX: &str = include_str!("../../hooks/codex/obliterate-awareness.md");
 
 /// Template written by `obliterate init` when no filters.toml exists yet.
-const FILTERS_TEMPLATE: &str = r#"# Project-local RTK filters — commit this file with your repo.
+const FILTERS_TEMPLATE: &str = r#"# Project-local Obliterate filters — commit this file with your repo.
 # Filters here override user-global and built-in filters.
-# Docs: https://github.com/rtk-ai/rtk#custom-filters
+# Docs: https://github.com/obliterate-ai/obliterate#custom-filters
 schema_version = 1
 
 # Example: suppress build noise from a custom tool
@@ -47,10 +47,10 @@ schema_version = 1
 # on_empty = "my-tool: ok"
 "#;
 
-/// Template for user-global filters (~/.config/rtk/filters.toml).
-const FILTERS_GLOBAL_TEMPLATE: &str = r#"# User-global RTK filters — apply to all your projects.
-# Project-local .rtk/filters.toml takes precedence over these.
-# Docs: https://github.com/rtk-ai/rtk#custom-filters
+/// Template for user-global filters (~/.config/obliterate/filters.toml).
+const FILTERS_GLOBAL_TEMPLATE: &str = r#"# User-global Obliterate filters — apply to all your projects.
+# Project-local .obliterate/filters.toml takes precedence over these.
+# Docs: https://github.com/obliterate-ai/obliterate#custom-filters
 schema_version = 1
 
 # Example: suppress noise from a tool you use everywhere
@@ -62,22 +62,22 @@ schema_version = 1
 # max_lines = 40
 "#;
 
-const RTK_MD: &str = "OBLITERATE.md";
+const OBLITERATE_MD: &str = "OBLITERATE.md";
 #[allow(dead_code)]
-const LEGACY_RTK_MD: &str = "RTK.md";
+const LEGACY_OBLITERATE_MD: &str = "Obliterate.md";
 const CLAUDE_MD: &str = "CLAUDE.md";
 const AGENTS_MD: &str = "AGENTS.md";
-const RTK_MD_REF: &str = "@OBLITERATE.md";
+const OBLITERATE_MD_REF: &str = "@OBLITERATE.md";
 #[allow(dead_code)]
-const LEGACY_RTK_MD_REF: &str = "@OBLITERATE.md";
+const LEGACY_OBLITERATE_MD_REF: &str = "@OBLITERATE.md";
 const GEMINI_MD: &str = "GEMINI.md";
 
-const RTK_BLOCK_START: &str = "<!-- obliterate-instructions";
-const RTK_BLOCK_END: &str = "<!-- /obliterate-instructions -->";
+const OBLITERATE_BLOCK_START: &str = "<!-- obliterate-instructions";
+const OBLITERATE_BLOCK_END: &str = "<!-- /obliterate-instructions -->";
 #[allow(dead_code)]
-const LEGACY_RTK_BLOCK_START: &str = "<!-- rtk-instructions";
+const LEGACY_OBLITERATE_BLOCK_START: &str = "<!-- obliterate-instructions";
 #[allow(dead_code)]
-const LEGACY_RTK_BLOCK_END: &str = "<!-- /rtk-instructions -->";
+const LEGACY_OBLITERATE_BLOCK_END: &str = "<!-- /obliterate-instructions -->";
 
 /// Control flow for settings.json patching
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -114,127 +114,127 @@ fn print_dry_run_footer() {
 }
 
 // Legacy full instructions for backward compatibility (--claude-md mode)
-const RTK_INSTRUCTIONS: &str = r##"<!-- rtk-instructions v2 -->
-# RTK (Rust Token Killer) - Token-Optimized Commands
+const OBLITERATE_INSTRUCTIONS: &str = r##"<!-- obliterate-instructions v2 -->
+# Obliterate (Rust Token Killer) - Token-Optimized Commands
 
 ## Golden Rule
 
-**Always prefix commands with `rtk`**. If RTK has a dedicated filter, it uses it. If not, it passes through unchanged. This means RTK is always safe to use.
+**Always prefix commands with `obliterate`**. If Obliterate has a dedicated filter, it uses it. If not, it passes through unchanged. This means Obliterate is always safe to use.
 
-**Important**: Even in command chains with `&&`, use `rtk`:
+**Important**: Even in command chains with `&&`, use `obliterate`:
 ```bash
 # ❌ Wrong
 git add . && git commit -m "msg" && git push
 
 # ✅ Correct
-rtk git add . && rtk git commit -m "msg" && rtk git push
+obliterate git add . && obliterate git commit -m "msg" && obliterate git push
 ```
 
-## RTK Commands by Workflow
+## Obliterate Commands by Workflow
 
 ### Build & Compile (80-90% savings)
 ```bash
-rtk cargo build         # Cargo build output
-rtk cargo check         # Cargo check output
-rtk cargo clippy        # Clippy warnings grouped by file (80%)
-rtk tsc                 # TypeScript errors grouped by file/code (83%)
-rtk lint                # ESLint/Biome violations grouped (84%)
-rtk prettier --check    # Files needing format only (70%)
-rtk next build          # Next.js build with route metrics (87%)
+obliterate cargo build         # Cargo build output
+obliterate cargo check         # Cargo check output
+obliterate cargo clippy        # Clippy warnings grouped by file (80%)
+obliterate tsc                 # TypeScript errors grouped by file/code (83%)
+obliterate lint                # ESLint/Biome violations grouped (84%)
+obliterate prettier --check    # Files needing format only (70%)
+obliterate next build          # Next.js build with route metrics (87%)
 ```
 
 ### Test (60-99% savings)
 ```bash
-rtk cargo test          # Cargo test failures only (90%)
-rtk go test             # Go test failures only (90%)
-rtk jest                # Jest failures only (99.5%)
-rtk vitest              # Vitest failures only (99.5%)
-rtk playwright test     # Playwright failures only (94%)
-rtk pytest              # Python test failures only (90%)
-rtk rake test           # Ruby test failures only (90%)
-rtk rspec               # RSpec test failures only (60%)
-rtk test <cmd>          # Generic test wrapper - failures only
+obliterate cargo test          # Cargo test failures only (90%)
+obliterate go test             # Go test failures only (90%)
+obliterate jest                # Jest failures only (99.5%)
+obliterate vitest              # Vitest failures only (99.5%)
+obliterate playwright test     # Playwright failures only (94%)
+obliterate pytest              # Python test failures only (90%)
+obliterate rake test           # Ruby test failures only (90%)
+obliterate rspec               # RSpec test failures only (60%)
+obliterate test <cmd>          # Generic test wrapper - failures only
 ```
 
 ### Git (59-80% savings)
 ```bash
-rtk git status          # Compact status
-rtk git log             # Compact log (works with all git flags)
-rtk git diff            # Compact diff (80%)
-rtk git show            # Compact show (80%)
-rtk git add             # Ultra-compact confirmations (59%)
-rtk git commit          # Ultra-compact confirmations (59%)
-rtk git push            # Ultra-compact confirmations
-rtk git pull            # Ultra-compact confirmations
-rtk git branch          # Compact branch list
-rtk git fetch           # Compact fetch
-rtk git stash           # Compact stash
-rtk git worktree        # Compact worktree
+obliterate git status          # Compact status
+obliterate git log             # Compact log (works with all git flags)
+obliterate git diff            # Compact diff (80%)
+obliterate git show            # Compact show (80%)
+obliterate git add             # Ultra-compact confirmations (59%)
+obliterate git commit          # Ultra-compact confirmations (59%)
+obliterate git push            # Ultra-compact confirmations
+obliterate git pull            # Ultra-compact confirmations
+obliterate git branch          # Compact branch list
+obliterate git fetch           # Compact fetch
+obliterate git stash           # Compact stash
+obliterate git worktree        # Compact worktree
 ```
 
 Note: Git passthrough works for ALL subcommands, even those not explicitly listed.
 
 ### GitHub (26-87% savings)
 ```bash
-rtk gh pr view <num>    # Compact PR view (87%)
-rtk gh pr checks        # Compact PR checks (79%)
-rtk gh run list         # Compact workflow runs (82%)
-rtk gh issue list       # Compact issue list (80%)
-rtk gh api              # Compact API responses (26%)
+obliterate gh pr view <num>    # Compact PR view (87%)
+obliterate gh pr checks        # Compact PR checks (79%)
+obliterate gh run list         # Compact workflow runs (82%)
+obliterate gh issue list       # Compact issue list (80%)
+obliterate gh api              # Compact API responses (26%)
 ```
 
 ### JavaScript/TypeScript Tooling (70-90% savings)
 ```bash
-rtk pnpm list           # Compact dependency tree (70%)
-rtk pnpm outdated       # Compact outdated packages (80%)
-rtk pnpm install        # Compact install output (90%)
-rtk npm run <script>    # Compact npm script output
-rtk npx <cmd>           # Compact npx command output
-rtk prisma              # Prisma without ASCII art (88%)
+obliterate pnpm list           # Compact dependency tree (70%)
+obliterate pnpm outdated       # Compact outdated packages (80%)
+obliterate pnpm install        # Compact install output (90%)
+obliterate npm run <script>    # Compact npm script output
+obliterate npx <cmd>           # Compact npx command output
+obliterate prisma              # Prisma without ASCII art (88%)
 ```
 
 ### Files & Search (60-75% savings)
 ```bash
-rtk ls <path>           # Tree format, compact (65%)
-rtk read <file>         # Code reading with filtering (60%)
-rtk grep <pattern>      # Search grouped by file (75%). Format flags (-c, -l, -L, -o, -Z) run raw.
-rtk find <pattern>      # Find grouped by directory (70%)
+obliterate ls <path>           # Tree format, compact (65%)
+obliterate read <file>         # Code reading with filtering (60%)
+obliterate grep <pattern>      # Search grouped by file (75%). Format flags (-c, -l, -L, -o, -Z) run raw.
+obliterate find <pattern>      # Find grouped by directory (70%)
 ```
 
 ### Analysis & Debug (70-90% savings)
 ```bash
-rtk err <cmd>           # Filter errors only from any command
-rtk log <file>          # Deduplicated logs with counts
-rtk json <file>         # JSON structure without values
-rtk deps                # Dependency overview
-rtk env                 # Environment variables compact
-rtk summary <cmd>       # Smart summary of command output
-rtk diff                # Ultra-compact diffs
+obliterate err <cmd>           # Filter errors only from any command
+obliterate log <file>          # Deduplicated logs with counts
+obliterate json <file>         # JSON structure without values
+obliterate deps                # Dependency overview
+obliterate env                 # Environment variables compact
+obliterate summary <cmd>       # Smart summary of command output
+obliterate diff                # Ultra-compact diffs
 ```
 
 ### Infrastructure (85% savings)
 ```bash
-rtk docker ps           # Compact container list
-rtk docker images       # Compact image list
-rtk docker logs <c>     # Deduplicated logs
-rtk kubectl get         # Compact resource list
-rtk kubectl logs        # Deduplicated pod logs
+obliterate docker ps           # Compact container list
+obliterate docker images       # Compact image list
+obliterate docker logs <c>     # Deduplicated logs
+obliterate kubectl get         # Compact resource list
+obliterate kubectl logs        # Deduplicated pod logs
 ```
 
 ### Network (65-70% savings)
 ```bash
-rtk curl <url>          # Compact HTTP responses (70%)
-rtk wget <url>          # Compact download output (65%)
+obliterate curl <url>          # Compact HTTP responses (70%)
+obliterate wget <url>          # Compact download output (65%)
 ```
 
 ### Meta Commands
 ```bash
-rtk gain                # View token savings statistics
-rtk gain --history      # View command history with savings
-rtk discover            # Analyze Claude Code sessions for missed RTK usage
-rtk proxy <cmd>         # Run command without filtering (for debugging)
-rtk init                # Add RTK instructions to CLAUDE.md
-rtk init --global       # Add RTK to ~/.claude/CLAUDE.md
+obliterate gain                # View token savings statistics
+obliterate gain --history      # View command history with savings
+obliterate discover            # Analyze Claude Code sessions for missed Obliterate usage
+obliterate proxy <cmd>         # Run command without filtering (for debugging)
+obliterate init                # Add Obliterate instructions to CLAUDE.md
+obliterate init --global       # Add Obliterate to ~/.claude/CLAUDE.md
 ```
 
 ## Token Savings Overview
@@ -251,7 +251,7 @@ rtk init --global       # Add RTK to ~/.claude/CLAUDE.md
 | Network | curl, wget | 65-70% |
 
 Overall average: **60-90% token reduction** on common development operations.
-<!-- /rtk-instructions -->
+<!-- /obliterate-instructions -->
 "##;
 
 /// Main entry point for `obliterate init`
@@ -291,15 +291,15 @@ pub fn run(
     } else {
         // Validation: Global-only features
         if install_opencode && !global {
-            anyhow::bail!("OpenCode plugin is global-only. Use: rtk init -g --opencode");
+            anyhow::bail!("OpenCode plugin is global-only. Use: obliterate init -g --opencode");
         }
 
         if install_cursor && !global {
-            anyhow::bail!("Cursor hooks are global-only. Use: rtk init -g --agent cursor");
+            anyhow::bail!("Cursor hooks are global-only. Use: obliterate init -g --agent cursor");
         }
 
         if install_windsurf && !global {
-            anyhow::bail!("Windsurf support is global-only. Use: rtk init -g --agent windsurf");
+            anyhow::bail!("Windsurf support is global-only. Use: obliterate init -g --agent windsurf");
         }
 
         if install_windsurf {
@@ -457,10 +457,26 @@ pub fn save_telemetry_consent(accepted: bool) -> Result<()> {
 }
 
 fn prompt_telemetry_consent() -> Result<()> {
-    // Telemetry has been removed from this build. No prompt, no data
-    // collection, no remote endpoint. Ensures consent stays explicitly disabled
-    // so any leftover config from a previous install is overridden.
-    let _ = save_telemetry_consent(false);
+    use std::io::{self, BufRead, IsTerminal};
+
+    eprintln!("\nHelp improve Obliterate with anonymous aggregate usage metrics? [y/N] ");
+    eprintln!("(at most once per day; no raw command output is sent)");
+
+    if !io::stdin().is_terminal() {
+        eprintln!("(non-interactive mode, defaulting to N)");
+        return save_telemetry_consent(false);
+    }
+
+    let stdin = io::stdin();
+    let mut line = String::new();
+    stdin
+        .lock()
+        .read_line(&mut line)
+        .context("Failed to read telemetry consent input")?;
+
+    let response = line.trim().to_lowercase();
+    let accepted = response == "y" || response == "yes";
+    save_telemetry_consent(accepted)?;
     Ok(())
 }
 
@@ -513,7 +529,7 @@ fn remove_hook_from_json(root: &mut serde_json::Value) -> bool {
     pre_tool_use_array.len() < original_len
 }
 
-/// Remove RTK hook from settings.json file
+/// Remove Obliterate hook from settings.json file
 /// Backs up before modification, returns true if hook was found and removed
 fn remove_hook_from_settings(ctx: InitContext) -> Result<bool> {
     let InitContext { verbose, dry_run } = ctx;
@@ -542,7 +558,7 @@ fn remove_hook_from_settings(ctx: InitContext) -> Result<bool> {
     if removed {
         if dry_run {
             println!(
-                "[dry-run] would remove RTK hook entry from {}",
+                "[dry-run] would remove Obliterate hook entry from {}",
                 settings_path.display()
             );
             if verbose > 0 {
@@ -564,7 +580,7 @@ fn remove_hook_from_settings(ctx: InitContext) -> Result<bool> {
         atomic_write(&settings_path, &serialized)?;
 
         if verbose > 0 {
-            eprintln!("Removed RTK hook from settings.json");
+            eprintln!("Removed Obliterate hook from settings.json");
         }
     }
 
@@ -596,9 +612,9 @@ pub fn uninstall(
         let cursor_removed = remove_cursor_hooks(ctx).context("Failed to remove Cursor hooks")?;
         if !cursor_removed.is_empty() {
             let header = if dry_run {
-                "[dry-run] would uninstall RTK (Cursor):"
+                "[dry-run] would uninstall Obliterate (Cursor):"
             } else {
-                "RTK uninstalled (Cursor):"
+                "Obliterate uninstalled (Cursor):"
             };
             println!("{}", header);
             for item in &cursor_removed {
@@ -608,7 +624,7 @@ pub fn uninstall(
                 println!("\nRestart Cursor to apply changes.");
             }
         } else {
-            println!("RTK Cursor support was not installed (nothing to remove)");
+            println!("Obliterate Cursor support was not installed (nothing to remove)");
         }
         if dry_run {
             print_dry_run_footer();
@@ -622,7 +638,7 @@ pub fn uninstall(
     }
 
     if !global {
-        anyhow::bail!("Uninstall only works with --global flag. For local projects, manually remove RTK from CLAUDE.md");
+        anyhow::bail!("Uninstall only works with --global flag. For local projects, manually remove Obliterate from CLAUDE.md");
     }
 
     let claude_dir = resolve_claude_dir()?;
@@ -634,9 +650,9 @@ pub fn uninstall(
         removed.extend(gemini_removed);
         if !removed.is_empty() {
             let header = if dry_run {
-                "[dry-run] would uninstall RTK (Gemini):"
+                "[dry-run] would uninstall Obliterate (Gemini):"
             } else {
-                "RTK uninstalled (Gemini):"
+                "Obliterate uninstalled (Gemini):"
             };
             println!("{}", header);
             for item in &removed {
@@ -646,7 +662,7 @@ pub fn uninstall(
                 println!("\nRestart Gemini CLI to apply changes.");
             }
         } else {
-            println!("RTK Gemini support was not installed (nothing to remove)");
+            println!("Obliterate Gemini support was not installed (nothing to remove)");
         }
         if dry_run {
             print_dry_run_footer();
@@ -680,16 +696,16 @@ pub fn uninstall(
         removed.push("Integrity hash: removed".to_string());
     }
 
-    // 2. Remove RTK.md
-    let rtk_md_path = claude_dir.join(RTK_MD);
-    if rtk_md_path.exists() {
+    // 2. Remove Obliterate.md
+    let obliterate_md_path = claude_dir.join(OBLITERATE_MD);
+    if obliterate_md_path.exists() {
         if dry_run {
-            println!("[dry-run] would remove OBLITERATE.md: {}", rtk_md_path.display());
+            println!("[dry-run] would remove OBLITERATE.md: {}", obliterate_md_path.display());
         } else {
-            fs::remove_file(&rtk_md_path)
-                .with_context(|| format!("Failed to remove OBLITERATE.md: {}", rtk_md_path.display()))?;
+            fs::remove_file(&obliterate_md_path)
+                .with_context(|| format!("Failed to remove OBLITERATE.md: {}", obliterate_md_path.display()))?;
         }
-        removed.push(format!("OBLITERATE.md: {}", rtk_md_path.display()));
+        removed.push(format!("OBLITERATE.md: {}", obliterate_md_path.display()));
     }
 
     // 3. Remove @OBLITERATE.md reference from CLAUDE.md
@@ -701,10 +717,10 @@ pub fn uninstall(
         let mut claude_md_changed = false;
         let mut working_content = content.clone();
 
-        if working_content.contains(RTK_MD_REF) {
+        if working_content.contains(OBLITERATE_MD_REF) {
             let new_content = working_content
                 .lines()
-                .filter(|line| !line.trim().starts_with(RTK_MD_REF))
+                .filter(|line| !line.trim().starts_with(OBLITERATE_MD_REF))
                 .collect::<Vec<_>>()
                 .join("\n");
 
@@ -713,12 +729,12 @@ pub fn uninstall(
             removed.push("CLAUDE.md: removed @OBLITERATE.md reference".to_string());
         }
 
-        if working_content.contains(RTK_BLOCK_START) {
-            let (cleaned, did_remove) = remove_rtk_block(&working_content);
+        if working_content.contains(OBLITERATE_BLOCK_START) {
+            let (cleaned, did_remove) = remove_obliterate_block(&working_content);
             if did_remove {
                 working_content = cleaned;
                 claude_md_changed = true;
-                removed.push("CLAUDE.md: removed rtk-instructions block".to_string());
+                removed.push("CLAUDE.md: removed obliterate-instructions block".to_string());
             }
         }
 
@@ -759,7 +775,7 @@ pub fn uninstall(
 
     // 4. Remove hook entry from settings.json
     if remove_hook_from_settings(ctx)? {
-        removed.push("settings.json: removed RTK hook entry".to_string());
+        removed.push("settings.json: removed Obliterate hook entry".to_string());
     }
 
     // 5. Remove OpenCode plugin
@@ -774,16 +790,16 @@ pub fn uninstall(
 
     // Report results
     if removed.is_empty() {
-        println!("RTK was not installed (nothing to remove)");
+        println!("Obliterate was not installed (nothing to remove)");
         println!("  Checked: {}", hook_path.display());
-        println!("  Checked: {}", claude_dir.join(RTK_MD).display());
+        println!("  Checked: {}", claude_dir.join(OBLITERATE_MD).display());
         println!("  Checked: {}", claude_md_path.display());
         println!("  Checked: {}", claude_dir.join(SETTINGS_JSON).display());
     } else {
         let header = if dry_run {
-            "[dry-run] would uninstall RTK:"
+            "[dry-run] would uninstall Obliterate:"
         } else {
-            "RTK uninstalled:"
+            "Obliterate uninstalled:"
         };
         println!("{}", header);
         for item in removed {
@@ -805,7 +821,7 @@ fn uninstall_codex(global: bool, ctx: InitContext) -> Result<()> {
     let InitContext { dry_run, .. } = ctx;
     if !global {
         anyhow::bail!(
-            "Uninstall only works with --global flag. For local projects, manually remove RTK from AGENTS.md"
+            "Uninstall only works with --global flag. For local projects, manually remove Obliterate from AGENTS.md"
         );
     }
 
@@ -813,12 +829,12 @@ fn uninstall_codex(global: bool, ctx: InitContext) -> Result<()> {
     let removed = uninstall_codex_at(&codex_dir, ctx)?;
 
     if removed.is_empty() {
-        println!("RTK was not installed for Codex CLI (nothing to remove)");
+        println!("Obliterate was not installed for Codex CLI (nothing to remove)");
     } else {
         let header = if dry_run {
-            "[dry-run] would uninstall RTK for Codex CLI:"
+            "[dry-run] would uninstall Obliterate for Codex CLI:"
         } else {
-            "RTK uninstalled for Codex CLI:"
+            "Obliterate uninstalled for Codex CLI:"
         };
         println!("{}", header);
         for item in removed {
@@ -832,20 +848,20 @@ fn uninstall_codex(global: bool, ctx: InitContext) -> Result<()> {
 fn uninstall_codex_at(codex_dir: &Path, ctx: InitContext) -> Result<Vec<String>> {
     let InitContext { verbose, dry_run } = ctx;
     let mut removed = Vec::new();
-    let absolute_rtk_md_ref = codex_rtk_md_ref(codex_dir);
+    let absolute_obliterate_md_ref = codex_obliterate_md_ref(codex_dir);
 
-    let rtk_md_path = codex_dir.join(RTK_MD);
-    if rtk_md_path.exists() {
+    let obliterate_md_path = codex_dir.join(OBLITERATE_MD);
+    if obliterate_md_path.exists() {
         if dry_run {
-            println!("[dry-run] would remove OBLITERATE.md: {}", rtk_md_path.display());
+            println!("[dry-run] would remove OBLITERATE.md: {}", obliterate_md_path.display());
         } else {
-            fs::remove_file(&rtk_md_path)
-                .with_context(|| format!("Failed to remove OBLITERATE.md: {}", rtk_md_path.display()))?;
+            fs::remove_file(&obliterate_md_path)
+                .with_context(|| format!("Failed to remove OBLITERATE.md: {}", obliterate_md_path.display()))?;
             if verbose > 0 {
-                eprintln!("Removed OBLITERATE.md: {}", rtk_md_path.display());
+                eprintln!("Removed OBLITERATE.md: {}", obliterate_md_path.display());
             }
         }
-        removed.push(format!("OBLITERATE.md: {}", rtk_md_path.display()));
+        removed.push(format!("OBLITERATE.md: {}", obliterate_md_path.display()));
     }
 
     let agents_md_path = codex_dir.join(AGENTS_MD);
@@ -856,12 +872,12 @@ fn uninstall_codex_at(codex_dir: &Path, ctx: InitContext) -> Result<Vec<String>>
         let mut working_content = content.clone();
         let mut agents_changed = false;
 
-        if working_content.contains(RTK_BLOCK_START) {
-            let (cleaned, did_remove) = remove_rtk_block(&working_content);
+        if working_content.contains(OBLITERATE_BLOCK_START) {
+            let (cleaned, did_remove) = remove_obliterate_block(&working_content);
             if did_remove {
                 working_content = cleaned;
                 agents_changed = true;
-                removed.push("AGENTS.md: removed rtk-instructions block".to_string());
+                removed.push("AGENTS.md: removed obliterate-instructions block".to_string());
             }
         }
 
@@ -872,9 +888,9 @@ fn uninstall_codex_at(codex_dir: &Path, ctx: InitContext) -> Result<Vec<String>>
         }
     }
 
-    if remove_rtk_reference_from_agents(
+    if remove_obliterate_reference_from_agents(
         &agents_md_path,
-        &[RTK_MD_REF, absolute_rtk_md_ref.as_str()],
+        &[OBLITERATE_MD_REF, absolute_obliterate_md_ref.as_str()],
         ctx,
     )? {
         removed.push("AGENTS.md: removed @OBLITERATE.md reference".to_string());
@@ -883,7 +899,7 @@ fn uninstall_codex_at(codex_dir: &Path, ctx: InitContext) -> Result<Vec<String>>
     Ok(removed)
 }
 
-/// Orchestrator: patch settings.json with RTK hook (binary command variant)
+/// Orchestrator: patch settings.json with Obliterate hook (binary command variant)
 /// Handles reading, checking, prompting, merging, backing up, and atomic writing
 fn patch_settings_json_command(
     hook_command: &str,
@@ -1016,7 +1032,7 @@ fn clean_double_blanks(content: &str) -> String {
     result.join("\n")
 }
 
-/// Deep-merge RTK hook entry into settings.json
+/// Deep-merge Obliterate hook entry into settings.json
 /// Creates hooks.PreToolUse structure if missing, preserves existing hooks
 fn insert_hook_entry(root: &mut serde_json::Value, hook_command: &str) -> Result<()> {
     let root_obj = match root.as_object_mut() {
@@ -1049,8 +1065,8 @@ fn insert_hook_entry(root: &mut serde_json::Value, hook_command: &str) -> Result
     Ok(())
 }
 
-/// Check if RTK hook is already present in settings.json
-/// Matches on legacy rtk-rewrite.sh path OR new `rtk hook claude` command
+/// Check if Obliterate hook is already present in settings.json
+/// Matches on legacy obliterate-rewrite.sh path OR new `obliterate hook claude` command
 fn hook_already_present(root: &serde_json::Value, hook_command: &str) -> bool {
     let pre_tool_use_array = match root
         .get("hooks")
@@ -1074,7 +1090,7 @@ fn hook_already_present(root: &serde_json::Value, hook_command: &str) -> bool {
         })
 }
 
-/// Default mode: hook + slim RTK.md + @OBLITERATE.md reference
+/// Default mode: hook + slim Obliterate.md + @OBLITERATE.md reference
 fn run_default_mode(
     global: bool,
     patch_mode: PatchMode,
@@ -1090,14 +1106,14 @@ fn run_default_mode(
     }
 
     let claude_dir = resolve_claude_dir()?;
-    let rtk_md_path = claude_dir.join(RTK_MD);
+    let obliterate_md_path = claude_dir.join(OBLITERATE_MD);
     let claude_md_path = claude_dir.join(CLAUDE_MD);
 
     // 1. Migrate old hook script if present
     migrate_old_hook_script(ctx);
 
-    // 2. Write RTK.md
-    write_if_changed(&rtk_md_path, RTK_SLIM, RTK_MD, ctx)?;
+    // 2. Write Obliterate.md
+    write_if_changed(&obliterate_md_path, OBLITERATE_SLIM, OBLITERATE_MD, ctx)?;
 
     let opencode_plugin_path = if install_opencode {
         let path = prepare_opencode_plugin_path()?;
@@ -1112,16 +1128,16 @@ fn run_default_mode(
 
     // 4. Print success message (skip in dry-run)
     if !dry_run {
-        println!("\nRTK hook registered (global).\n");
+        println!("\nOBLITERATE hook registered (global).\n");
         println!("  Command:   {}", CLAUDE_HOOK_COMMAND);
-        println!("  OBLITERATE.md:    {} (10 lines)", rtk_md_path.display());
+        println!("  OBLITERATE.md:    {} (10 lines)", obliterate_md_path.display());
         if let Some(path) = &opencode_plugin_path {
             println!("  OpenCode:  {}", path.display());
         }
         println!("  CLAUDE.md: @OBLITERATE.md reference added");
 
         if migrated {
-            println!("\n  [ok] Migrated: removed 137-line RTK block from CLAUDE.md");
+            println!("\n  [ok] Migrated: removed 137-line Obliterate block from CLAUDE.md");
             println!("              replaced with @OBLITERATE.md (10 lines)");
         }
     }
@@ -1153,7 +1169,7 @@ fn run_default_mode(
         }
     }
 
-    // 6. Generate user-global filters template (~/.config/rtk/filters.toml)
+    // 6. Generate user-global filters template (~/.config/obliterate/filters.toml)
     generate_global_filters_template(ctx)?;
 
     if !dry_run {
@@ -1164,8 +1180,8 @@ fn run_default_mode(
 }
 
 /// Migrate old hook script to new binary command.
-/// Deletes `~/.claude/hooks/rtk-rewrite.sh` and `.rtk-hook.sha256` if present,
-/// and removes the stale settings.json entry so the new `rtk hook claude` entry
+/// Deletes `~/.claude/hooks/obliterate-rewrite.sh` and `.obliterate-hook.sha256` if present,
+/// and removes the stale settings.json entry so the new `obliterate hook claude` entry
 /// can be registered.
 fn migrate_old_hook_script(ctx: InitContext) {
     let InitContext { verbose, dry_run } = ctx;
@@ -1201,7 +1217,7 @@ fn migrate_old_hook_script(ctx: InitContext) {
         let hash_file = home
             .join(CLAUDE_DIR)
             .join(HOOKS_SUBDIR)
-            .join(".rtk-hook.sha256");
+            .join(".obliterate-hook.sha256");
         if hash_file.exists() {
             if dry_run {
                 println!(
@@ -1227,8 +1243,8 @@ fn migrate_old_hook_script(ctx: InitContext) {
     }
 }
 
-/// Remove only legacy `rtk-rewrite.sh` entries from settings.json.
-/// Preserves any existing `rtk hook claude` entries (new format).
+/// Remove only legacy `obliterate-rewrite.sh` entries from settings.json.
+/// Preserves any existing `obliterate hook claude` entries (new format).
 fn remove_legacy_settings_entries(ctx: InitContext) -> Result<()> {
     let InitContext { verbose, dry_run } = ctx;
     let claude_dir = resolve_claude_dir()?;
@@ -1253,7 +1269,7 @@ fn remove_legacy_settings_entries(ctx: InitContext) -> Result<()> {
 
     if dry_run {
         println!(
-            "[dry-run] would remove legacy rtk-rewrite.sh entry from {}",
+            "[dry-run] would remove legacy obliterate-rewrite.sh entry from {}",
             settings_path.display()
         );
         return Ok(());
@@ -1269,14 +1285,14 @@ fn remove_legacy_settings_entries(ctx: InitContext) -> Result<()> {
     atomic_write(&settings_path, &serialized)?;
 
     if verbose > 0 {
-        eprintln!("  [ok] Removed legacy rtk-rewrite.sh entry from settings.json");
+        eprintln!("  [ok] Removed legacy obliterate-rewrite.sh entry from settings.json");
     }
     Ok(())
 }
 
-/// Remove only legacy `rtk-rewrite.sh` hook entries from a parsed settings.json.
+/// Remove only legacy `obliterate-rewrite.sh` hook entries from a parsed settings.json.
 /// Returns true if any entries were removed.
-/// Does NOT remove `rtk hook claude` entries — those are the new format.
+/// Does NOT remove `obliterate hook claude` entries — those are the new format.
 fn remove_legacy_hook_entries_from_json(root: &mut serde_json::Value) -> bool {
     let pre_tool_use_array = match root
         .get_mut("hooks")
@@ -1306,29 +1322,29 @@ fn remove_legacy_hook_entries_from_json(root: &mut serde_json::Value) -> bool {
     pre_tool_use_array.len() < original_len
 }
 
-/// Generate .rtk/filters.toml template in the current directory if not present.
+/// Generate .obliterate/filters.toml template in the current directory if not present.
 fn generate_project_filters_template(ctx: InitContext) -> Result<()> {
     let InitContext { verbose, dry_run } = ctx;
-    let rtk_dir = std::path::Path::new(".rtk");
-    let path = rtk_dir.join("filters.toml");
+    let obliterate_dir = std::path::Path::new(".obliterate");
+    let path = obliterate_dir.join("filters.toml");
 
     if path.exists() {
         if verbose > 0 {
-            eprintln!(".rtk/filters.toml already exists, skipping template");
+            eprintln!(".obliterate/filters.toml already exists, skipping template");
         }
         return Ok(());
     }
 
     if dry_run {
         println!(
-            "[dry-run] would create .rtk/filters.toml template: {}",
+            "[dry-run] would create .obliterate/filters.toml template: {}",
             path.display()
         );
         return Ok(());
     }
 
-    fs::create_dir_all(rtk_dir)
-        .with_context(|| format!("Failed to create directory: {}", rtk_dir.display()))?;
+    fs::create_dir_all(obliterate_dir)
+        .with_context(|| format!("Failed to create directory: {}", obliterate_dir.display()))?;
     fs::write(&path, FILTERS_TEMPLATE)
         .with_context(|| format!("Failed to write {}", path.display()))?;
 
@@ -1339,12 +1355,12 @@ fn generate_project_filters_template(ctx: InitContext) -> Result<()> {
     Ok(())
 }
 
-/// Generate ~/.config/rtk/filters.toml template if not present.
+/// Generate ~/.config/obliterate/filters.toml template if not present.
 fn generate_global_filters_template(ctx: InitContext) -> Result<()> {
     let InitContext { verbose, dry_run } = ctx;
     let config_dir = dirs::config_dir().unwrap_or_else(|| std::path::PathBuf::from(".config"));
-    let rtk_dir = config_dir.join(crate::core::constants::RTK_DATA_DIR);
-    let path = rtk_dir.join("filters.toml");
+    let obliterate_dir = config_dir.join(crate::core::constants::OBLITERATE_DATA_DIR);
+    let path = obliterate_dir.join("filters.toml");
 
     if path.exists() {
         if verbose > 0 {
@@ -1361,8 +1377,8 @@ fn generate_global_filters_template(ctx: InitContext) -> Result<()> {
         return Ok(());
     }
 
-    fs::create_dir_all(&rtk_dir)
-        .with_context(|| format!("Failed to create directory: {}", rtk_dir.display()))?;
+    fs::create_dir_all(&obliterate_dir)
+        .with_context(|| format!("Failed to create directory: {}", obliterate_dir.display()))?;
     fs::write(&path, FILTERS_GLOBAL_TEMPLATE)
         .with_context(|| format!("Failed to write {}", path.display()))?;
 
@@ -1399,13 +1415,13 @@ fn run_hook_only_mode(
     };
 
     if !dry_run {
-        println!("\nRTK hook registered (hook-only mode).\n");
+        println!("\nOBLITERATE hook registered (hook-only mode).\n");
         println!("  Command: {}", CLAUDE_HOOK_COMMAND);
         if let Some(path) = &opencode_plugin_path {
             println!("  OpenCode: {}", path.display());
         }
         println!(
-            "  Note: No RTK.md created. Claude won't know about meta commands (gain, discover, proxy)."
+            "  Note: No Obliterate.md created. Claude won't know about meta commands (gain, discover, proxy)."
         );
     }
 
@@ -1459,7 +1475,7 @@ fn run_claude_md_mode(global: bool, install_opencode: bool, ctx: InitContext) ->
     }
 
     if verbose > 0 {
-        eprintln!("Writing rtk instructions to: {}", path.display());
+        eprintln!("Writing obliterate instructions to: {}", path.display());
     }
 
     let recovery_cmd = if global {
@@ -1468,15 +1484,15 @@ fn run_claude_md_mode(global: bool, install_opencode: bool, ctx: InitContext) ->
         "obliterate init --claude-md"
     };
 
-    let action = write_rtk_block(
+    let action = write_obliterate_block(
         &path,
-        RTK_INSTRUCTIONS,
-        "rtk instructions",
+        OBLITERATE_INSTRUCTIONS,
+        "obliterate instructions",
         recovery_cmd,
         ctx,
     )?;
 
-    if matches!(action, RtkBlockUpsert::Unchanged) {
+    if matches!(action, ObliterateBlockUpsert::Unchanged) {
         return Ok(());
     }
 
@@ -1492,10 +1508,10 @@ fn run_claude_md_mode(global: bool, install_opencode: bool, ctx: InitContext) ->
             }
         }
         if !dry_run {
-            println!("   Claude Code will now use rtk in all sessions");
+            println!("   Claude Code will now use obliterate in all sessions");
         }
     } else if !dry_run {
-        println!("   Claude Code will use rtk in this project");
+        println!("   Claude Code will use obliterate in this project");
     }
 
     Ok(())
@@ -1503,10 +1519,10 @@ fn run_claude_md_mode(global: bool, install_opencode: bool, ctx: InitContext) ->
 
 // ─── Windsurf support ─────────────────────────────────────────
 
-/// Embedded Windsurf RTK rules
+/// Embedded Windsurf Obliterate rules
 const WINDSURF_RULES: &str = include_str!("../../hooks/windsurf/rules.md");
 
-/// Embedded Cline RTK rules
+/// Embedded Cline Obliterate rules
 const CLINE_RULES: &str = include_str!("../../hooks/cline/rules.md");
 
 // ─── Cline / Roo Code support ─────────────────────────────────
@@ -1517,9 +1533,9 @@ fn run_cline_mode(ctx: InitContext) -> Result<()> {
     let rules_path = PathBuf::from(".clinerules");
 
     let existing = fs::read_to_string(&rules_path).unwrap_or_default();
-    if existing.contains("RTK") || existing.contains("rtk") {
+    if existing.contains("Obliterate") || existing.contains("obliterate") {
         if !dry_run {
-            println!("\nRTK already configured for Cline in this project.\n");
+            println!("\nOBLITERATE already configured for Cline in this project.\n");
             println!("  Rules: .clinerules (already present)");
         }
     } else {
@@ -1543,12 +1559,12 @@ fn run_cline_mode(ctx: InitContext) -> Result<()> {
                 eprintln!("Wrote .clinerules");
             }
 
-            println!("\nRTK configured for Cline.\n");
+            println!("\nOBLITERATE configured for Cline.\n");
             println!("  Rules: .clinerules (installed)");
         }
     }
     if !dry_run {
-        println!("  Cline will now use rtk commands for token savings.");
+        println!("  Cline will now use obliterate commands for token savings.");
         println!("  Test with: git status\n");
     }
 
@@ -1562,9 +1578,9 @@ fn run_windsurf_mode(ctx: InitContext) -> Result<()> {
     let rules_path = PathBuf::from(".windsurfrules");
 
     let existing = fs::read_to_string(&rules_path).unwrap_or_default();
-    if existing.contains("RTK") || existing.contains("rtk") {
+    if existing.contains("Obliterate") || existing.contains("obliterate") {
         if !dry_run {
-            println!("\nRTK already configured for Windsurf in this project.\n");
+            println!("\nOBLITERATE already configured for Windsurf in this project.\n");
             println!("  Rules: .windsurfrules (already present)");
         }
     } else {
@@ -1588,12 +1604,12 @@ fn run_windsurf_mode(ctx: InitContext) -> Result<()> {
                 eprintln!("Wrote .windsurfrules");
             }
 
-            println!("\nRTK configured for Windsurf Cascade.\n");
+            println!("\nOBLITERATE configured for Windsurf Cascade.\n");
             println!("  Rules: .windsurfrules (installed)");
         }
     }
     if !dry_run {
-        println!("  Cascade will now use rtk commands for token savings.");
+        println!("  Cascade will now use obliterate commands for token savings.");
         println!("  Restart Windsurf. Test with: git status\n");
     }
 
@@ -1612,13 +1628,13 @@ fn run_kilocode_mode_at(base_dir: &Path, ctx: InitContext) -> Result<()> {
     let InitContext { verbose, dry_run } = ctx;
     // Kilo Code reads .kilocode/rules/ from the project root (workspace-scoped)
     let target_dir = base_dir.join(".kilocode/rules");
-    let rules_path = target_dir.join("rtk-rules.md");
+    let rules_path = target_dir.join("obliterate-rules.md");
 
     let existing = fs::read_to_string(&rules_path).unwrap_or_default();
-    if existing.contains("RTK") || existing.contains("rtk") {
+    if existing.contains("Obliterate") || existing.contains("obliterate") {
         if !dry_run {
-            println!("\nRTK already configured for Kilo Code in this project.\n");
-            println!("  Rules: .kilocode/rules/rtk-rules.md (already present)");
+            println!("\nOBLITERATE already configured for Kilo Code in this project.\n");
+            println!("  Rules: .kilocode/rules/obliterate-rules.md (already present)");
         }
     } else {
         let new_content = if existing.trim().is_empty() {
@@ -1638,20 +1654,20 @@ fn run_kilocode_mode_at(base_dir: &Path, ctx: InitContext) -> Result<()> {
             fs::create_dir_all(&target_dir)
                 .context("Failed to create .kilocode/rules directory")?;
             fs::write(&rules_path, &new_content)
-                .context("Failed to write .kilocode/rules/rtk-rules.md")?;
+                .context("Failed to write .kilocode/rules/obliterate-rules.md")?;
 
             if verbose > 0 {
-                eprintln!("Wrote .kilocode/rules/rtk-rules.md");
+                eprintln!("Wrote .kilocode/rules/obliterate-rules.md");
             }
 
-            println!("\nRTK configured for Kilo Code.\n");
-            println!("  Rules: .kilocode/rules/rtk-rules.md (installed)");
+            println!("\nOBLITERATE configured for Kilo Code.\n");
+            println!("  Rules: .kilocode/rules/obliterate-rules.md (installed)");
         }
     }
     if dry_run {
         print_dry_run_footer();
     } else {
-        println!("  Kilo Code will now use rtk commands for token savings.");
+        println!("  Kilo Code will now use obliterate commands for token savings.");
         println!("  Test with: git status\n");
     }
 
@@ -1670,13 +1686,13 @@ fn run_antigravity_mode_at(base_dir: &Path, ctx: InitContext) -> Result<()> {
     let InitContext { verbose, dry_run } = ctx;
     // Antigravity reads .agents/rules/ from the project root (workspace-scoped)
     let target_dir = base_dir.join(".agents/rules");
-    let rules_path = target_dir.join("antigravity-rtk-rules.md");
+    let rules_path = target_dir.join("antigravity-obliterate-rules.md");
 
     let existing = fs::read_to_string(&rules_path).unwrap_or_default();
-    if existing.contains("RTK") || existing.contains("rtk") {
+    if existing.contains("Obliterate") || existing.contains("obliterate") {
         if !dry_run {
-            println!("\nRTK already configured for Antigravity in this project.\n");
-            println!("  Rules: .agents/rules/antigravity-rtk-rules.md (already present)");
+            println!("\nOBLITERATE already configured for Antigravity in this project.\n");
+            println!("  Rules: .agents/rules/antigravity-obliterate-rules.md (already present)");
         }
     } else {
         let new_content = if existing.trim().is_empty() {
@@ -1695,20 +1711,20 @@ fn run_antigravity_mode_at(base_dir: &Path, ctx: InitContext) -> Result<()> {
         } else {
             fs::create_dir_all(&target_dir).context("Failed to create .agents/rules directory")?;
             fs::write(&rules_path, &new_content)
-                .context("Failed to write .agents/rules/antigravity-rtk-rules.md")?;
+                .context("Failed to write .agents/rules/antigravity-obliterate-rules.md")?;
 
             if verbose > 0 {
-                eprintln!("Wrote .agents/rules/antigravity-rtk-rules.md");
+                eprintln!("Wrote .agents/rules/antigravity-obliterate-rules.md");
             }
 
-            println!("\nRTK configured for Google Antigravity.\n");
-            println!("  Rules: .agents/rules/antigravity-rtk-rules.md (installed)");
+            println!("\nOBLITERATE configured for Google Antigravity.\n");
+            println!("  Rules: .agents/rules/antigravity-obliterate-rules.md (installed)");
         }
     }
     if dry_run {
         print_dry_run_footer();
     } else {
-        println!("  Antigravity will now use rtk commands for token savings.");
+        println!("  Antigravity will now use obliterate commands for token savings.");
         println!("  Test with: git status\n");
     }
 
@@ -1717,8 +1733,8 @@ fn run_antigravity_mode_at(base_dir: &Path, ctx: InitContext) -> Result<()> {
 
 // ─── Hermes support ────────────────────────────────────────────
 
-const HERMES_PLUGIN_INIT: &str = include_str!("../../hooks/hermes/rtk-rewrite/__init__.py");
-const HERMES_PLUGIN_YAML: &str = include_str!("../../hooks/hermes/rtk-rewrite/plugin.yaml");
+const HERMES_PLUGIN_INIT: &str = include_str!("../../hooks/hermes/obliterate-rewrite/__init__.py");
+const HERMES_PLUGIN_YAML: &str = include_str!("../../hooks/hermes/obliterate-rewrite/plugin.yaml");
 
 pub fn run_hermes_mode(ctx: InitContext) -> Result<()> {
     let hermes_home = resolve_hermes_home()?;
@@ -1766,10 +1782,10 @@ fn run_hermes_mode_at(hermes_home: &Path, ctx: InitContext) -> Result<()> {
     if dry_run {
         print_dry_run_footer();
     } else {
-        println!("\nRTK configured for Hermes.\n");
+        println!("\nOBLITERATE configured for Hermes.\n");
         println!("  Plugin: {}", plugin_dir.display());
         println!("  Config: {}", config_path.display());
-        println!("  Hermes will now rewrite terminal commands through rtk.");
+        println!("  Hermes will now rewrite terminal commands through obliterate.");
         println!("  Restart Hermes. Test with: git status\n");
     }
 
@@ -1782,12 +1798,12 @@ pub fn uninstall_hermes(ctx: InitContext) -> Result<()> {
     let removed = uninstall_hermes_at(&hermes_home, ctx)?;
 
     if removed.is_empty() {
-        println!("RTK Hermes support was not installed (nothing to remove)");
+        println!("Obliterate Hermes support was not installed (nothing to remove)");
     } else {
         let header = if dry_run {
-            "[dry-run] would uninstall RTK for Hermes CLI:"
+            "[dry-run] would uninstall Obliterate for Hermes CLI:"
         } else {
-            "RTK uninstalled for Hermes CLI:"
+            "Obliterate uninstalled for Hermes CLI:"
         };
         println!("{}", header);
         for item in removed {
@@ -1814,7 +1830,7 @@ fn uninstall_hermes_at(hermes_home: &Path, ctx: InitContext) -> Result<Vec<Strin
                 plugin_dir.display()
             );
         } else {
-            // nosemgrep: filesystem-deletion -- uninstall intentionally removes only RTK's Hermes plugin directory.
+            // nosemgrep: filesystem-deletion -- uninstall intentionally removes only Obliterate's Hermes plugin directory.
             fs::remove_dir_all(&plugin_dir).with_context(|| {
                 format!(
                     "Failed to remove Hermes plugin directory: {}",
@@ -1851,7 +1867,7 @@ fn uninstall_hermes_at(hermes_home: &Path, ctx: InitContext) -> Result<Vec<Strin
                     eprintln!("Updated Hermes config: {}", config_path.display());
                 }
             }
-            removed.push("Hermes config: removed RTK plugin entry".to_string());
+            removed.push("Hermes config: removed Obliterate plugin entry".to_string());
         }
     }
 
@@ -1866,9 +1882,9 @@ fn unpatch_hermes_config(existing: &str) -> String {
     rewrite_hermes_config(existing, false)
 }
 
-fn rewrite_hermes_config(existing: &str, add_rtk: bool) -> String {
+fn rewrite_hermes_config(existing: &str, add_obliterate: bool) -> String {
     if existing.trim().is_empty() {
-        return if add_rtk {
+        return if add_obliterate {
             hermes_plugins_block()
         } else {
             String::new()
@@ -1877,7 +1893,7 @@ fn rewrite_hermes_config(existing: &str, add_rtk: bool) -> String {
 
     let mut lines = split_yaml_lines(existing);
     let Some(plugins_idx) = find_yaml_key_line(&lines, "plugins", 0, None) else {
-        return if add_rtk {
+        return if add_obliterate {
             append_hermes_plugins_block(existing)
         } else {
             existing.to_string()
@@ -1892,7 +1908,7 @@ fn rewrite_hermes_config(existing: &str, add_rtk: bool) -> String {
         plugins_idx + 1,
         Some((plugins_end, plugins_indent)),
     ) else {
-        if add_rtk {
+        if add_obliterate {
             let (enabled_indent, item_indent) =
                 hermes_missing_enabled_indents(&lines, plugins_idx, plugins_end, plugins_indent);
             let enabled_block = format!(
@@ -1908,11 +1924,11 @@ fn rewrite_hermes_config(existing: &str, add_rtk: bool) -> String {
     };
 
     if yaml_line_without_ending(&lines[enabled_idx]).contains('[') {
-        rewrite_inline_hermes_enabled(&mut lines, enabled_idx, add_rtk);
+        rewrite_inline_hermes_enabled(&mut lines, enabled_idx, add_obliterate);
         return lines.concat();
     }
 
-    rewrite_block_hermes_enabled(&mut lines, enabled_idx, add_rtk);
+    rewrite_block_hermes_enabled(&mut lines, enabled_idx, add_obliterate);
     lines.concat()
 }
 
@@ -1993,7 +2009,7 @@ fn yaml_block_end(lines: &[String], start: usize, parent_indent: usize) -> usize
         .unwrap_or(lines.len())
 }
 
-fn rewrite_inline_hermes_enabled(lines: &mut [String], enabled_idx: usize, add_rtk: bool) {
+fn rewrite_inline_hermes_enabled(lines: &mut [String], enabled_idx: usize, add_obliterate: bool) {
     let line_ending = yaml_line_ending(&lines[enabled_idx]);
     let raw = yaml_line_without_ending(&lines[enabled_idx]);
     let Some((prefix, rest)) = raw.split_once('[') else {
@@ -2004,7 +2020,7 @@ fn rewrite_inline_hermes_enabled(lines: &mut [String], enabled_idx: usize, add_r
     };
 
     let mut items = Vec::new();
-    let mut saw_rtk = false;
+    let mut saw_obliterate = false;
     for item in items_raw.split(',') {
         let trimmed = item.trim();
         if trimmed.is_empty() {
@@ -2012,16 +2028,16 @@ fn rewrite_inline_hermes_enabled(lines: &mut [String], enabled_idx: usize, add_r
         }
 
         if is_hermes_plugin_name(trimmed) {
-            if add_rtk && !saw_rtk {
+            if add_obliterate && !saw_obliterate {
                 items.push(trimmed.to_string());
-                saw_rtk = true;
+                saw_obliterate = true;
             }
         } else {
             items.push(trimmed.to_string());
         }
     }
 
-    if add_rtk && !saw_rtk {
+    if add_obliterate && !saw_obliterate {
         items.push(HERMES_PLUGIN_NAME.to_string());
     }
 
@@ -2033,17 +2049,17 @@ fn rewrite_inline_hermes_enabled(lines: &mut [String], enabled_idx: usize, add_r
     lines[enabled_idx] = replacement;
 }
 
-fn rewrite_block_hermes_enabled(lines: &mut Vec<String>, enabled_idx: usize, add_rtk: bool) {
+fn rewrite_block_hermes_enabled(lines: &mut Vec<String>, enabled_idx: usize, add_obliterate: bool) {
     let enabled_end = hermes_enabled_list_end(lines, enabled_idx);
     let item_indent = hermes_enabled_list_item_indent(lines, enabled_idx, enabled_end);
     let mut kept = Vec::with_capacity(lines.len() + 1);
-    let mut saw_rtk = false;
+    let mut saw_obliterate = false;
 
     for line in &lines[enabled_idx + 1..enabled_end] {
         if is_yaml_list_item_named(line, HERMES_PLUGIN_NAME) {
-            if add_rtk && !saw_rtk {
+            if add_obliterate && !saw_obliterate {
                 kept.push(line.clone());
-                saw_rtk = true;
+                saw_obliterate = true;
             }
             continue;
         }
@@ -2051,7 +2067,7 @@ fn rewrite_block_hermes_enabled(lines: &mut Vec<String>, enabled_idx: usize, add
         kept.push(line.clone());
     }
 
-    if add_rtk && !saw_rtk {
+    if add_obliterate && !saw_obliterate {
         let insert_idx = kept.len();
         ensure_previous_yaml_line_ends_with_newline(&mut kept, insert_idx);
         kept.push(format!(
@@ -2061,13 +2077,13 @@ fn rewrite_block_hermes_enabled(lines: &mut Vec<String>, enabled_idx: usize, add
         ));
     }
 
-    let mut enabled_line = if add_rtk || kept.iter().any(|line| is_yaml_list_item_line(line)) {
+    let mut enabled_line = if add_obliterate || kept.iter().any(|line| is_yaml_list_item_line(line)) {
         lines[enabled_idx].clone()
     } else {
         collapse_yaml_list_key_to_empty(&lines[enabled_idx])
     };
 
-    if add_rtk
+    if add_obliterate
         && kept
             .iter()
             .any(|line| is_yaml_list_item_named(line, HERMES_PLUGIN_NAME))
@@ -2215,19 +2231,19 @@ fn normalized_yaml_scalar(value: &str) -> Option<String> {
 }
 
 fn run_codex_mode(global: bool, ctx: InitContext) -> Result<()> {
-    let (agents_md_path, rtk_md_path) = if global {
+    let (agents_md_path, obliterate_md_path) = if global {
         let codex_dir = resolve_codex_dir()?;
-        (codex_dir.join(AGENTS_MD), codex_dir.join(RTK_MD))
+        (codex_dir.join(AGENTS_MD), codex_dir.join(OBLITERATE_MD))
     } else {
-        (PathBuf::from(AGENTS_MD), PathBuf::from(RTK_MD))
+        (PathBuf::from(AGENTS_MD), PathBuf::from(OBLITERATE_MD))
     };
 
-    run_codex_mode_with_paths(agents_md_path, rtk_md_path, global, ctx)
+    run_codex_mode_with_paths(agents_md_path, obliterate_md_path, global, ctx)
 }
 
 fn run_codex_mode_with_paths(
     agents_md_path: PathBuf,
-    rtk_md_path: PathBuf,
+    obliterate_md_path: PathBuf,
     global: bool,
     ctx: InitContext,
 ) -> Result<()> {
@@ -2246,26 +2262,26 @@ fn run_codex_mode_with_paths(
     // ISSUE #892: In global mode, use absolute path so @OBLITERATE.md resolves
     // from any CWD (worktrees, nested projects). Codex resolves @ references
     // relative to CWD, not the AGENTS.md file location.
-    let rtk_md_ref = if global {
-        codex_rtk_md_ref(
-            rtk_md_path
+    let obliterate_md_ref = if global {
+        codex_obliterate_md_ref(
+            obliterate_md_path
                 .parent()
-                .context("RTK.md path missing parent directory")?,
+                .context("Obliterate.md path missing parent directory")?,
         )
     } else {
-        RTK_MD_REF.to_string()
+        OBLITERATE_MD_REF.to_string()
     };
 
-    write_if_changed(&rtk_md_path, RTK_SLIM_CODEX, RTK_MD, ctx)?;
-    let added_ref = patch_agents_md(&agents_md_path, &rtk_md_ref, ctx)?;
+    write_if_changed(&obliterate_md_path, OBLITERATE_SLIM_CODEX, OBLITERATE_MD, ctx)?;
+    let added_ref = patch_agents_md(&agents_md_path, &obliterate_md_ref, ctx)?;
 
     if !dry_run {
-        println!("\nRTK configured for Codex CLI.\n");
-        println!("  OBLITERATE.md:    {}", rtk_md_path.display());
+        println!("\nOBLITERATE configured for Codex CLI.\n");
+        println!("  OBLITERATE.md:    {}", obliterate_md_path.display());
         if added_ref {
-            println!("  AGENTS.md: {} reference added", rtk_md_ref);
+            println!("  AGENTS.md: {} reference added", obliterate_md_ref);
         } else {
-            println!("  AGENTS.md: {} reference already present", rtk_md_ref);
+            println!("  AGENTS.md: {} reference already present", obliterate_md_ref);
         }
         if global {
             println!(
@@ -2283,10 +2299,10 @@ fn run_codex_mode_with_paths(
     Ok(())
 }
 
-// --- upsert_rtk_block: idempotent RTK block management ---
+// --- upsert_obliterate_block: idempotent Obliterate block management ---
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum RtkBlockUpsert {
+enum ObliterateBlockUpsert {
     /// No existing block found — appended new block
     Added,
     /// Existing block found with different content — replaced
@@ -2297,13 +2313,13 @@ enum RtkBlockUpsert {
     Malformed,
 }
 
-/// Insert or replace the RTK instructions block in `content`.
+/// Insert or replace the Obliterate instructions block in `content`.
 ///
 /// Returns `(new_content, action)` describing what happened.
 /// The caller decides whether to write `new_content` based on `action`.
-fn upsert_rtk_block(content: &str, block: &str) -> (String, RtkBlockUpsert) {
-    let start_marker = RTK_BLOCK_START;
-    let end_marker = RTK_BLOCK_END;
+fn upsert_obliterate_block(content: &str, block: &str) -> (String, ObliterateBlockUpsert) {
+    let start_marker = OBLITERATE_BLOCK_START;
+    let end_marker = OBLITERATE_BLOCK_END;
 
     if let Some(start) = content.find(start_marker) {
         if let Some(relative_end) = content[start..].find(end_marker) {
@@ -2313,7 +2329,7 @@ fn upsert_rtk_block(content: &str, block: &str) -> (String, RtkBlockUpsert) {
             let desired_block = block.trim();
 
             if current_block == desired_block {
-                return (content.to_string(), RtkBlockUpsert::Unchanged);
+                return (content.to_string(), ObliterateBlockUpsert::Unchanged);
             }
 
             // Replace stale block with desired block
@@ -2327,44 +2343,44 @@ fn upsert_rtk_block(content: &str, block: &str) -> (String, RtkBlockUpsert) {
                 (false, false) => format!("{before}\n\n{desired_block}\n\n{after}"),
             };
 
-            return (result, RtkBlockUpsert::Updated);
+            return (result, ObliterateBlockUpsert::Updated);
         }
 
         // Opening marker without closing marker — malformed
-        return (content.to_string(), RtkBlockUpsert::Malformed);
+        return (content.to_string(), ObliterateBlockUpsert::Malformed);
     }
 
     // No existing block — append
     let trimmed = content.trim();
     if trimmed.is_empty() {
-        (block.to_string(), RtkBlockUpsert::Added)
+        (block.to_string(), ObliterateBlockUpsert::Added)
     } else {
         (
             format!("{trimmed}\n\n{}", block.trim()),
-            RtkBlockUpsert::Added,
+            ObliterateBlockUpsert::Added,
         )
     }
 }
 
-/// Idempotently write an RTK-owned marker block into `path`, preserving user content.
+/// Idempotently write an Obliterate-owned marker block into `path`, preserving user content.
 ///
-/// Reads the file (if any), passes it through [`upsert_rtk_block`], and writes the
+/// Reads the file (if any), passes it through [`upsert_obliterate_block`], and writes the
 /// result back via [`atomic_write`]. Refuses to modify files containing an opening
 /// marker without a matching closing marker (bails with a diagnostic and the exact
 /// `recovery_cmd` to re-run after manual cleanup).
 ///
-/// Returns the [`RtkBlockUpsert`] action so callers can branch on whether anything
+/// Returns the [`ObliterateBlockUpsert`] action so callers can branch on whether anything
 /// was actually changed (e.g., to skip post-install steps on `Unchanged`).
 ///
-/// `label` is shown in user-facing messages (e.g., `"rtk instructions"`,
+/// `label` is shown in user-facing messages (e.g., `"obliterate instructions"`,
 /// `"Copilot instructions"`).
-fn write_rtk_block(
+fn write_obliterate_block(
     path: &Path,
     block: &str,
     label: &str,
     recovery_cmd: &str,
     ctx: InitContext,
-) -> Result<RtkBlockUpsert> {
+) -> Result<ObliterateBlockUpsert> {
     let InitContext { dry_run, .. } = ctx;
 
     let existing = if path.exists() {
@@ -2373,10 +2389,10 @@ fn write_rtk_block(
         String::new()
     };
 
-    let (new_content, action) = upsert_rtk_block(&existing, block);
+    let (new_content, action) = upsert_obliterate_block(&existing, block);
 
     match action {
-        RtkBlockUpsert::Added => {
+        ObliterateBlockUpsert::Added => {
             if dry_run {
                 println!("[dry-run] would add {} to {}", label, path.display());
             } else {
@@ -2385,7 +2401,7 @@ fn write_rtk_block(
                 println!("[ok] Added {} to {}", label, path.display());
             }
         }
-        RtkBlockUpsert::Updated => {
+        ObliterateBlockUpsert::Updated => {
             if dry_run {
                 println!("[dry-run] would update {} in {}", label, path.display());
             } else {
@@ -2394,21 +2410,21 @@ fn write_rtk_block(
                 println!("[ok] Updated {} in {}", label, path.display());
             }
         }
-        RtkBlockUpsert::Unchanged => {
+        ObliterateBlockUpsert::Unchanged => {
             if !dry_run {
                 println!("[ok] {} already up to date in {}", label, path.display());
             }
         }
-        RtkBlockUpsert::Malformed => {
+        ObliterateBlockUpsert::Malformed => {
             eprintln!(
                 "[warn] Found '{}' without closing marker in {}",
-                RTK_BLOCK_START,
+                OBLITERATE_BLOCK_START,
                 path.display()
             );
             if let Some((line_num, _)) = existing
                 .lines()
                 .enumerate()
-                .find(|(_, line)| line.contains(RTK_BLOCK_START))
+                .find(|(_, line)| line.contains(OBLITERATE_BLOCK_START))
             {
                 eprintln!("    Location: line {}", line_num + 1);
             }
@@ -2437,26 +2453,26 @@ fn patch_claude_md(path: &Path, ctx: InitContext) -> Result<bool> {
     let mut migrated = false;
 
     // Check for old block and migrate
-    if content.contains(RTK_BLOCK_START) {
-        let (new_content, did_migrate) = remove_rtk_block(&content);
+    if content.contains(OBLITERATE_BLOCK_START) {
+        let (new_content, did_migrate) = remove_obliterate_block(&content);
         if did_migrate {
             content = new_content;
             migrated = true;
             if verbose > 0 {
-                eprintln!("Migrated: removed old RTK block from CLAUDE.md");
+                eprintln!("Migrated: removed old Obliterate block from CLAUDE.md");
             }
         }
     }
 
     // Check if @OBLITERATE.md already present
-    if content.contains(RTK_MD_REF) {
+    if content.contains(OBLITERATE_MD_REF) {
         if verbose > 0 {
             eprintln!("@OBLITERATE.md reference already present in CLAUDE.md");
         }
         if migrated {
             if dry_run {
                 println!(
-                    "[dry-run] would migrate old RTK block in CLAUDE.md: {}",
+                    "[dry-run] would migrate old Obliterate block in CLAUDE.md: {}",
                     path.display()
                 );
             } else {
@@ -2493,7 +2509,7 @@ fn patch_claude_md(path: &Path, ctx: InitContext) -> Result<bool> {
 }
 
 /// Patch AGENTS.md: add @OBLITERATE.md (or absolute path), migrate old inline block if present
-fn patch_agents_md(path: &Path, rtk_md_ref: &str, ctx: InitContext) -> Result<bool> {
+fn patch_agents_md(path: &Path, obliterate_md_ref: &str, ctx: InitContext) -> Result<bool> {
     let InitContext { verbose, dry_run } = ctx;
     let mut content = if path.exists() {
         fs::read_to_string(path)
@@ -2503,38 +2519,38 @@ fn patch_agents_md(path: &Path, rtk_md_ref: &str, ctx: InitContext) -> Result<bo
     };
 
     let mut migrated = false;
-    if content.contains(RTK_BLOCK_START) {
-        let (new_content, did_migrate) = remove_rtk_block(&content);
+    if content.contains(OBLITERATE_BLOCK_START) {
+        let (new_content, did_migrate) = remove_obliterate_block(&content);
         if did_migrate {
             content = new_content;
             migrated = true;
             if verbose > 0 {
-                eprintln!("Migrated: removed old RTK block from AGENTS.md");
+                eprintln!("Migrated: removed old Obliterate block from AGENTS.md");
             }
         }
     }
 
     // ISSUE #892: Check for both relative and absolute @OBLITERATE.md references
-    if content.contains(RTK_MD_REF) || content.contains(rtk_md_ref) {
+    if content.contains(OBLITERATE_MD_REF) || content.contains(obliterate_md_ref) {
         if verbose > 0 {
-            eprintln!("{} reference already present in AGENTS.md", rtk_md_ref);
+            eprintln!("{} reference already present in AGENTS.md", obliterate_md_ref);
         }
         // ISSUE #892: Migrate old relative @OBLITERATE.md to absolute path if needed
-        if rtk_md_ref != RTK_MD_REF && content.contains(RTK_MD_REF) && !content.contains(rtk_md_ref)
+        if obliterate_md_ref != OBLITERATE_MD_REF && content.contains(OBLITERATE_MD_REF) && !content.contains(obliterate_md_ref)
         {
-            content = content.replace(RTK_MD_REF, rtk_md_ref);
+            content = content.replace(OBLITERATE_MD_REF, obliterate_md_ref);
             if dry_run {
                 println!(
                     "[dry-run] would migrate {} to {} in {}",
-                    RTK_MD_REF,
-                    rtk_md_ref,
+                    OBLITERATE_MD_REF,
+                    obliterate_md_ref,
                     path.display()
                 );
             } else {
                 atomic_write(path, &content)
                     .with_context(|| format!("Failed to write AGENTS.md: {}", path.display()))?;
                 if verbose > 0 {
-                    eprintln!("Migrated {} to {}", RTK_MD_REF, rtk_md_ref);
+                    eprintln!("Migrated {} to {}", OBLITERATE_MD_REF, obliterate_md_ref);
                 }
             }
             return Ok(true);
@@ -2554,15 +2570,15 @@ fn patch_agents_md(path: &Path, rtk_md_ref: &str, ctx: InitContext) -> Result<bo
     }
 
     let new_content = if content.is_empty() {
-        format!("{}\n", rtk_md_ref)
+        format!("{}\n", obliterate_md_ref)
     } else {
-        format!("{}\n\n{}\n", content.trim(), rtk_md_ref)
+        format!("{}\n\n{}\n", content.trim(), obliterate_md_ref)
     };
 
     if dry_run {
         println!(
             "[dry-run] would add {} reference to AGENTS.md: {}",
-            rtk_md_ref,
+            obliterate_md_ref,
             path.display()
         );
         if verbose > 0 {
@@ -2572,21 +2588,21 @@ fn patch_agents_md(path: &Path, rtk_md_ref: &str, ctx: InitContext) -> Result<bo
         atomic_write(path, &new_content)
             .with_context(|| format!("Failed to write AGENTS.md: {}", path.display()))?;
         if verbose > 0 {
-            eprintln!("Added {} reference to AGENTS.md", rtk_md_ref);
+            eprintln!("Added {} reference to AGENTS.md", obliterate_md_ref);
         }
     }
 
     Ok(true)
 }
 
-fn has_rtk_reference(content: &str, refs: &[&str]) -> bool {
+fn has_obliterate_reference(content: &str, refs: &[&str]) -> bool {
     content
         .lines()
         .map(str::trim)
         .any(|line| refs.contains(&line))
 }
 
-fn remove_rtk_reference_from_agents(path: &Path, refs: &[&str], ctx: InitContext) -> Result<bool> {
+fn remove_obliterate_reference_from_agents(path: &Path, refs: &[&str], ctx: InitContext) -> Result<bool> {
     let InitContext { verbose, dry_run } = ctx;
     if !path.exists() {
         return Ok(false);
@@ -2594,7 +2610,7 @@ fn remove_rtk_reference_from_agents(path: &Path, refs: &[&str], ctx: InitContext
 
     let content = fs::read_to_string(path)
         .with_context(|| format!("Failed to read AGENTS.md: {}", path.display()))?;
-    if !has_rtk_reference(&content, refs) {
+    if !has_obliterate_reference(&content, refs) {
         return Ok(false);
     }
 
@@ -2632,10 +2648,10 @@ fn remove_rtk_reference_from_agents(path: &Path, refs: &[&str], ctx: InitContext
     Ok(true)
 }
 
-/// Remove old RTK block from CLAUDE.md (migration helper)
-fn remove_rtk_block(content: &str) -> (String, bool) {
-    if let (Some(start), Some(end)) = (content.find(RTK_BLOCK_START), content.find(RTK_BLOCK_END)) {
-        let end_pos = end + RTK_BLOCK_END.len();
+/// Remove old Obliterate block from CLAUDE.md (migration helper)
+fn remove_obliterate_block(content: &str) -> (String, bool) {
+    if let (Some(start), Some(end)) = (content.find(OBLITERATE_BLOCK_START), content.find(OBLITERATE_BLOCK_END)) {
+        let end_pos = end + OBLITERATE_BLOCK_END.len();
         let before = content[..start].trim_end();
         let after = content[end_pos..].trim_start();
 
@@ -2646,23 +2662,23 @@ fn remove_rtk_block(content: &str) -> (String, bool) {
         };
 
         (result, true) // migrated
-    } else if content.contains(RTK_BLOCK_START) {
+    } else if content.contains(OBLITERATE_BLOCK_START) {
         eprintln!(
             "[warn] Warning: Found '{}' without closing marker.",
-            RTK_BLOCK_START
+            OBLITERATE_BLOCK_START
         );
         eprintln!("    This can happen if CLAUDE.md was manually edited.");
 
         if let Some((line_num, _)) = content
             .lines()
             .enumerate()
-            .find(|(_, line)| line.contains(RTK_BLOCK_START))
+            .find(|(_, line)| line.contains(OBLITERATE_BLOCK_START))
         {
             eprintln!("    Location: line {}", line_num + 1);
         }
 
         eprintln!("    Action: Manually remove the incomplete block, then re-run:");
-        eprintln!("            rtk init -g");
+        eprintln!("            obliterate init -g");
         (content.to_string(), false)
     } else {
         (content.to_string(), false)
@@ -2680,7 +2696,7 @@ fn resolve_home_subdir(subdir: &str) -> Result<PathBuf> {
 }
 
 fn resolve_claude_dir() -> Result<PathBuf> {
-    if let Ok(dir) = std::env::var("RTK_CLAUDE_DIR") {
+    if let Ok(dir) = std::env::var("OBLITERATE_CLAUDE_DIR") {
         return Ok(PathBuf::from(dir));
     }
     resolve_home_subdir(CLAUDE_DIR)
@@ -2723,8 +2739,8 @@ fn resolve_hermes_home_from_env(
         .context("Cannot determine Hermes home directory. Set $HERMES_HOME or $HOME.")
 }
 
-fn codex_rtk_md_ref(codex_dir: &Path) -> String {
-    format!("@{}", codex_dir.join(RTK_MD).display())
+fn codex_obliterate_md_ref(codex_dir: &Path) -> String {
+    format!("@{}", codex_dir.join(OBLITERATE_MD).display())
 }
 
 fn resolve_opencode_dir() -> Result<PathBuf> {
@@ -2749,8 +2765,8 @@ fn pi_plugin_path(pi_dir: &Path) -> PathBuf {
 }
 
 /// Return the Pi extension install path for the given scope.
-/// global=true  → `$PI_CODING_AGENT_DIR/extensions/rtk.ts`
-/// global=false → `./.pi/extensions/rtk.ts`
+/// global=true  → `$PI_CODING_AGENT_DIR/extensions/obliterate.ts`
+/// global=false → `./.pi/extensions/obliterate.ts`
 fn pi_plugin_path_for_scope(global: bool) -> Result<PathBuf> {
     if global {
         Ok(pi_plugin_path(&resolve_pi_dir()?))
@@ -2796,7 +2812,7 @@ fn uninstall_pi(global: bool, ctx: InitContext) -> Result<()> {
                 plugin_path.display()
             );
         } else {
-            // nosemgrep: filesystem-deletion -- Pi uninstall removes only the RTK-managed extension file.
+            // nosemgrep: filesystem-deletion -- Pi uninstall removes only the Obliterate-managed extension file.
             fs::remove_file(&plugin_path).with_context(|| {
                 format!("Failed to remove Pi extension: {}", plugin_path.display())
             })?;
@@ -2810,21 +2826,21 @@ fn uninstall_pi(global: bool, ctx: InitContext) -> Result<()> {
     if dry_run {
         print_dry_run_footer();
     } else if !removed.is_empty() {
-        println!("RTK uninstalled (Pi):");
+        println!("Obliterate uninstalled (Pi):");
         for item in &removed {
             println!("  - {}", item);
         }
         println!("\nRestart pi to apply changes.");
     } else {
-        println!("RTK Pi extension was not installed (nothing to remove)");
+        println!("Obliterate Pi extension was not installed (nothing to remove)");
     }
     Ok(())
 }
 
 /// Install the Pi extension (hook-only; no AGENTS.md injection).
 ///
-/// global=true  → `$PI_CODING_AGENT_DIR/extensions/rtk.ts`
-/// global=false → `.pi/extensions/rtk.ts`
+/// global=true  → `$PI_CODING_AGENT_DIR/extensions/obliterate.ts`
+/// global=false → `.pi/extensions/obliterate.ts`
 pub fn run_pi_mode(global: bool, ctx: InitContext) -> Result<()> {
     let InitContext {
         verbose: _,
@@ -2862,14 +2878,14 @@ fn print_pi_result(plugin_path: &Path, installed: bool) {
     } else {
         "already up to date"
     };
-    println!("RTK Pi extension {}:", status);
+    println!("Obliterate Pi extension {}:", status);
     println!("  Extension: {}", plugin_path.display());
     println!();
     println!("Pi will load the extension automatically on next start.");
     println!("Verify: pi -e {} --no-session", plugin_path.display());
 }
 
-/// Return OpenCode plugin path: ~/.config/opencode/plugins/rtk.ts
+/// Return OpenCode plugin path: ~/.config/opencode/plugins/obliterate.ts
 fn opencode_plugin_path(opencode_dir: &Path) -> PathBuf {
     opencode_dir.join(PLUGIN_SUBDIR).join(OPENCODE_PLUGIN_FILE)
 }
@@ -2970,9 +2986,9 @@ fn install_cursor_hooks(ctx: InitContext) -> Result<()> {
         println!("  hooks.json: {}", hooks_json_path.display());
 
         if patched {
-            println!("  hooks.json: RTK preToolUse entry added");
+            println!("  hooks.json: Obliterate preToolUse entry added");
         } else {
-            println!("  hooks.json: RTK preToolUse entry already present");
+            println!("  hooks.json: Obliterate preToolUse entry already present");
         }
 
         println!("  Cursor reloads hooks.json automatically. Test with: git status\n");
@@ -2981,7 +2997,7 @@ fn install_cursor_hooks(ctx: InitContext) -> Result<()> {
     Ok(())
 }
 
-/// Patch ~/.cursor/hooks.json to add RTK preToolUse hook.
+/// Patch ~/.cursor/hooks.json to add Obliterate preToolUse hook.
 /// Returns true if the file was modified.
 fn patch_cursor_hooks_json(path: &Path, ctx: InitContext) -> Result<bool> {
     let InitContext { verbose, dry_run } = ctx;
@@ -3001,7 +3017,7 @@ fn patch_cursor_hooks_json(path: &Path, ctx: InitContext) -> Result<bool> {
     // Check idempotency
     if cursor_hook_already_present(&root) {
         if verbose > 0 {
-            eprintln!("Cursor hooks.json: RTK hook already present");
+            eprintln!("Cursor hooks.json: Obliterate hook already present");
         }
         return Ok(false);
     }
@@ -3038,8 +3054,8 @@ fn patch_cursor_hooks_json(path: &Path, ctx: InitContext) -> Result<bool> {
     Ok(true)
 }
 
-/// Check if RTK preToolUse hook is already present in Cursor hooks.json
-/// Matches on legacy rtk-rewrite.sh path OR new `rtk hook cursor` command
+/// Check if Obliterate preToolUse hook is already present in Cursor hooks.json
+/// Matches on legacy obliterate-rewrite.sh path OR new `obliterate hook cursor` command
 fn cursor_hook_already_present(root: &serde_json::Value) -> bool {
     let hooks = match root
         .get("hooks")
@@ -3058,7 +3074,7 @@ fn cursor_hook_already_present(root: &serde_json::Value) -> bool {
     })
 }
 
-/// Insert RTK preToolUse entry into Cursor hooks.json
+/// Insert Obliterate preToolUse entry into Cursor hooks.json
 fn insert_cursor_hook_entry(root: &mut serde_json::Value) -> Result<()> {
     let root_obj = match root.as_object_mut() {
         Some(obj) => obj,
@@ -3089,8 +3105,8 @@ fn insert_cursor_hook_entry(root: &mut serde_json::Value) -> Result<()> {
     Ok(())
 }
 
-/// Remove only legacy `rtk-rewrite.sh` entries from Cursor hooks.json.
-/// Preserves any existing `rtk hook cursor` entries (new format).
+/// Remove only legacy `obliterate-rewrite.sh` entries from Cursor hooks.json.
+/// Preserves any existing `obliterate hook cursor` entries (new format).
 fn remove_legacy_cursor_hooks_json_entries(path: &Path, ctx: InitContext) -> Result<()> {
     let InitContext { verbose, dry_run } = ctx;
     if !path.exists() {
@@ -3112,7 +3128,7 @@ fn remove_legacy_cursor_hooks_json_entries(path: &Path, ctx: InitContext) -> Res
 
     if dry_run {
         println!(
-            "[dry-run] would remove legacy rtk-rewrite.sh entry from Cursor hooks.json: {}",
+            "[dry-run] would remove legacy obliterate-rewrite.sh entry from Cursor hooks.json: {}",
             path.display()
         );
         return Ok(());
@@ -3123,14 +3139,14 @@ fn remove_legacy_cursor_hooks_json_entries(path: &Path, ctx: InitContext) -> Res
     atomic_write(path, &serialized)?;
 
     if verbose > 0 {
-        eprintln!("  [ok] Removed legacy rtk-rewrite.sh entry from Cursor hooks.json");
+        eprintln!("  [ok] Removed legacy obliterate-rewrite.sh entry from Cursor hooks.json");
     }
     Ok(())
 }
 
-/// Remove only legacy `rtk-rewrite.sh` entries from parsed Cursor hooks.json.
+/// Remove only legacy `obliterate-rewrite.sh` entries from parsed Cursor hooks.json.
 /// Returns true if any entries were removed.
-/// Does NOT remove `rtk hook cursor` entries — those are the new format.
+/// Does NOT remove `obliterate hook cursor` entries — those are the new format.
 fn remove_legacy_cursor_hook_entries_from_json(root: &mut serde_json::Value) -> bool {
     let pre_tool_use = match root
         .get_mut("hooks")
@@ -3175,7 +3191,7 @@ fn remove_cursor_hooks(ctx: InitContext) -> Result<Vec<String>> {
         removed.push(format!("Cursor hook: {}", hook_path.display()));
     }
 
-    // 2. Remove RTK entry from hooks.json
+    // 2. Remove Obliterate entry from hooks.json
     let hooks_json_path = cursor_dir.join(HOOKS_JSON);
     if hooks_json_path.exists() {
         let content = fs::read_to_string(&hooks_json_path)
@@ -3186,7 +3202,7 @@ fn remove_cursor_hooks(ctx: InitContext) -> Result<Vec<String>> {
                 if remove_cursor_hook_from_json(&mut root) {
                     if dry_run {
                         println!(
-                            "[dry-run] would remove RTK entry from Cursor hooks.json: {}",
+                            "[dry-run] would remove Obliterate entry from Cursor hooks.json: {}",
                             hooks_json_path.display()
                         );
                     } else {
@@ -3198,10 +3214,10 @@ fn remove_cursor_hooks(ctx: InitContext) -> Result<Vec<String>> {
                         atomic_write(&hooks_json_path, &serialized)?;
 
                         if verbose > 0 {
-                            eprintln!("Removed RTK hook from Cursor hooks.json");
+                            eprintln!("Removed Obliterate hook from Cursor hooks.json");
                         }
                     }
-                    removed.push("Cursor hooks.json: removed RTK entry".to_string());
+                    removed.push("Cursor hooks.json: removed Obliterate entry".to_string());
                 }
             }
         }
@@ -3210,7 +3226,7 @@ fn remove_cursor_hooks(ctx: InitContext) -> Result<Vec<String>> {
     Ok(removed)
 }
 
-/// Remove RTK preToolUse entry from Cursor hooks.json
+/// Remove Obliterate preToolUse entry from Cursor hooks.json
 /// Returns true if entry was found and removed
 /// Matches both legacy script path and new binary command
 fn remove_cursor_hook_from_json(root: &mut serde_json::Value) -> bool {
@@ -3234,7 +3250,7 @@ fn remove_cursor_hook_from_json(root: &mut serde_json::Value) -> bool {
     pre_tool_use.len() < original_len
 }
 
-/// Show current rtk configuration
+/// Show current obliterate configuration
 pub fn show_config(codex: bool) -> Result<()> {
     if codex {
         return show_codex_config();
@@ -3246,7 +3262,7 @@ pub fn show_config(codex: bool) -> Result<()> {
 fn show_claude_config() -> Result<()> {
     let claude_dir = resolve_claude_dir()?;
     let hook_path = claude_dir.join(HOOKS_SUBDIR).join(REWRITE_HOOK_FILE);
-    let rtk_md_path = claude_dir.join(RTK_MD);
+    let obliterate_md_path = claude_dir.join(OBLITERATE_MD);
     let global_claude_md = claude_dir.join(CLAUDE_MD);
     let local_claude_md = PathBuf::from(CLAUDE_MD);
 
@@ -3277,8 +3293,8 @@ fn show_claude_config() -> Result<()> {
 
             let hook_content = fs::read_to_string(&hook_path)?;
             let has_guards =
-                hook_content.contains("command -v rtk") && hook_content.contains("command -v jq");
-            let is_thin_delegator = hook_content.contains("rtk rewrite");
+                hook_content.contains("command -v obliterate") && hook_content.contains("command -v jq");
+            let is_thin_delegator = hook_content.contains("obliterate rewrite");
             let hook_version = super::hook_check::parse_hook_version(&hook_content);
 
             if !is_executable {
@@ -3316,9 +3332,9 @@ fn show_claude_config() -> Result<()> {
         println!("[--] Hook: not found");
     }
 
-    // Check RTK.md
-    if rtk_md_path.exists() {
-        println!("[ok] OBLITERATE.md: {} (slim mode)", rtk_md_path.display());
+    // Check Obliterate.md
+    if obliterate_md_path.exists() {
+        println!("[ok] OBLITERATE.md: {} (slim mode)", obliterate_md_path.display());
     } else {
         println!("[--] OBLITERATE.md: not found");
     }
@@ -3330,10 +3346,10 @@ fn show_claude_config() -> Result<()> {
                 println!("[ok] Integrity: hook hash verified");
             }
             Ok(integrity::IntegrityStatus::Tampered { .. }) => {
-                println!("[FAIL] Integrity: hook modified outside rtk init (run: rtk verify)");
+                println!("[FAIL] Integrity: hook modified outside obliterate init (run: obliterate verify)");
             }
             Ok(integrity::IntegrityStatus::NoBaseline) => {
-                println!("[warn] Integrity: no baseline hash (run: rtk init -g to establish)");
+                println!("[warn] Integrity: no baseline hash (run: obliterate init -g to establish)");
             }
             Ok(integrity::IntegrityStatus::NotInstalled)
             | Ok(integrity::IntegrityStatus::OrphanedHash) => {
@@ -3348,14 +3364,14 @@ fn show_claude_config() -> Result<()> {
     // Check global CLAUDE.md
     if global_claude_md.exists() {
         let content = fs::read_to_string(&global_claude_md)?;
-        if content.contains(RTK_MD_REF) {
+        if content.contains(OBLITERATE_MD_REF) {
             println!("[ok] Global (~/.claude/CLAUDE.md): @OBLITERATE.md reference");
-        } else if content.contains(RTK_BLOCK_START) {
+        } else if content.contains(OBLITERATE_BLOCK_START) {
             println!(
-                "[warn] Global (~/.claude/CLAUDE.md): old RTK block (run: rtk init -g to migrate)"
+                "[warn] Global (~/.claude/CLAUDE.md): old Obliterate block (run: obliterate init -g to migrate)"
             );
         } else {
-            println!("[--] Global (~/.claude/CLAUDE.md): exists but rtk not configured");
+            println!("[--] Global (~/.claude/CLAUDE.md): exists but obliterate not configured");
         }
     } else {
         println!("[--] Global (~/.claude/CLAUDE.md): not found");
@@ -3364,10 +3380,10 @@ fn show_claude_config() -> Result<()> {
     // Check local CLAUDE.md
     if local_claude_md.exists() {
         let content = fs::read_to_string(&local_claude_md)?;
-        if content.contains("rtk") {
+        if content.contains("obliterate") {
             println!("[ok] Local (./CLAUDE.md): obliterate enabled");
         } else {
-            println!("[--] Local (./CLAUDE.md): exists but rtk not configured");
+            println!("[--] Local (./CLAUDE.md): exists but obliterate not configured");
         }
     } else {
         println!("[--] Local (./CLAUDE.md): not found");
@@ -3381,8 +3397,8 @@ fn show_claude_config() -> Result<()> {
                 if hook_already_present(&root, CLAUDE_HOOK_COMMAND) {
                     println!("[ok] settings.json: Obliterate hook configured");
                 } else {
-                    println!("[warn] settings.json: exists but RTK hook not configured");
-                    println!("    Run: rtk init -g --auto-patch");
+                    println!("[warn] settings.json: exists but Obliterate hook not configured");
+                    println!("    Run: obliterate init -g --auto-patch");
                 }
             } else {
                 println!("[warn] settings.json: exists but invalid JSON");
@@ -3432,7 +3448,7 @@ fn show_claude_config() -> Result<()> {
                 let meta = fs::metadata(&cursor_hook)?;
                 let is_executable = meta.permissions().mode() & 0o111 != 0;
                 let content = fs::read_to_string(&cursor_hook)?;
-                let _is_thin = content.contains("rtk rewrite");
+                let _is_thin = content.contains("obliterate rewrite");
 
                 if !is_executable {
                     println!(
@@ -3477,46 +3493,46 @@ fn show_claude_config() -> Result<()> {
 fn show_codex_config() -> Result<()> {
     let codex_dir = resolve_codex_dir()?;
     let global_agents_md = codex_dir.join(AGENTS_MD);
-    let global_rtk_md = codex_dir.join(RTK_MD);
-    let global_rtk_md_ref = codex_rtk_md_ref(&codex_dir);
+    let global_obliterate_md = codex_dir.join(OBLITERATE_MD);
+    let global_obliterate_md_ref = codex_obliterate_md_ref(&codex_dir);
     let local_agents_md = PathBuf::from(AGENTS_MD);
-    let local_rtk_md = PathBuf::from(RTK_MD);
+    let local_obliterate_md = PathBuf::from(OBLITERATE_MD);
 
     println!("Obliterate Configuration (Codex CLI):\n");
 
-    if global_rtk_md.exists() {
-        println!("[ok] Global OBLITERATE.md: {}", global_rtk_md.display());
+    if global_obliterate_md.exists() {
+        println!("[ok] Global OBLITERATE.md: {}", global_obliterate_md.display());
     } else {
         println!("[--] Global OBLITERATE.md: not found");
     }
 
     if global_agents_md.exists() {
         let content = fs::read_to_string(&global_agents_md)?;
-        if has_rtk_reference(&content, &[RTK_MD_REF, global_rtk_md_ref.as_str()]) {
-            println!("[ok] Global AGENTS.md: RTK.md reference");
-        } else if content.contains(RTK_BLOCK_START) {
-            println!("[!!] Global AGENTS.md: old inline RTK block");
+        if has_obliterate_reference(&content, &[OBLITERATE_MD_REF, global_obliterate_md_ref.as_str()]) {
+            println!("[ok] Global AGENTS.md: Obliterate.md reference");
+        } else if content.contains(OBLITERATE_BLOCK_START) {
+            println!("[!!] Global AGENTS.md: old inline Obliterate block");
         } else {
-            println!("[--] Global AGENTS.md: exists but rtk not configured");
+            println!("[--] Global AGENTS.md: exists but obliterate not configured");
         }
     } else {
         println!("[--] Global AGENTS.md: not found");
     }
 
-    if local_rtk_md.exists() {
-        println!("[ok] Local OBLITERATE.md: {}", local_rtk_md.display());
+    if local_obliterate_md.exists() {
+        println!("[ok] Local OBLITERATE.md: {}", local_obliterate_md.display());
     } else {
         println!("[--] Local OBLITERATE.md: not found");
     }
 
     if local_agents_md.exists() {
         let content = fs::read_to_string(&local_agents_md)?;
-        if has_rtk_reference(&content, &[RTK_MD_REF]) {
+        if has_obliterate_reference(&content, &[OBLITERATE_MD_REF]) {
             println!("[ok] Local AGENTS.md: @OBLITERATE.md reference");
-        } else if content.contains(RTK_BLOCK_START) {
-            println!("[!!] Local AGENTS.md: old inline RTK block");
+        } else if content.contains(OBLITERATE_BLOCK_START) {
+            println!("[!!] Local AGENTS.md: old inline Obliterate block");
         } else {
-            println!("[--] Local AGENTS.md: exists but rtk not configured");
+            println!("[--] Local AGENTS.md: exists but obliterate not configured");
         }
     } else {
         println!("[--] Local AGENTS.md: not found");
@@ -3544,9 +3560,9 @@ fn run_opencode_only_mode(ctx: InitContext) -> Result<()> {
 
 // ─── Gemini CLI support ───────────────────────────────────────────
 
-/// Gemini hook wrapper script — delegates to `rtk hook gemini`
+/// Gemini hook wrapper script — delegates to `obliterate hook gemini`
 const GEMINI_HOOK_SCRIPT: &str = r#"#!/bin/bash
-exec rtk hook gemini
+exec obliterate hook gemini
 "#;
 
 fn resolve_gemini_dir() -> Result<PathBuf> {
@@ -3562,7 +3578,7 @@ pub fn run_gemini(
 ) -> Result<()> {
     let InitContext { dry_run, .. } = ctx;
     if !global {
-        anyhow::bail!("Gemini support is global-only. Use: rtk init -g --gemini");
+        anyhow::bail!("Gemini support is global-only. Use: obliterate init -g --gemini");
     }
 
     let gemini_dir = resolve_gemini_dir()?;
@@ -3598,11 +3614,11 @@ pub fn run_gemini(
         })?;
     }
 
-    // 2. Install GEMINI.md (RTK awareness for Gemini)
+    // 2. Install GEMINI.md (Obliterate awareness for Gemini)
     if !hook_only {
         let gemini_md_path = gemini_dir.join(GEMINI_MD);
-        // Reuse the same slim RTK awareness content
-        write_if_changed(&gemini_md_path, RTK_SLIM, GEMINI_MD, ctx)?;
+        // Reuse the same slim Obliterate awareness content
+        write_if_changed(&gemini_md_path, OBLITERATE_SLIM, GEMINI_MD, ctx)?;
     }
 
     // 3. Patch ~/.gemini/settings.json
@@ -3647,10 +3663,10 @@ fn patch_gemini_settings(
             if arr.iter().any(|h| {
                 h.pointer("/hooks/0/command")
                     .and_then(|v| v.as_str())
-                    .is_some_and(|c| c.contains("rtk"))
+                    .is_some_and(|c| c.contains("obliterate"))
             }) {
                 if verbose > 0 {
-                    eprintln!("Gemini settings.json already has RTK hook");
+                    eprintln!("Gemini settings.json already has Obliterate hook");
                 }
                 return Ok(());
             }
@@ -3660,8 +3676,8 @@ fn patch_gemini_settings(
     // Ask user before patching
     if patch_mode == PatchMode::Skip {
         println!(
-            "\nManual setup needed: add RTK hook to {}\n\
-             See: https://github.com/rtk-ai/rtk#gemini-cli",
+            "\nManual setup needed: add Obliterate hook to {}\n\
+             See: https://github.com/obliterate-ai/obliterate#gemini-cli",
             settings_path.display()
         );
         return Ok(());
@@ -3674,7 +3690,7 @@ fn patch_gemini_settings(
                 settings_path.display()
             );
         } else {
-            print!("Patch {} with RTK hook? [y/N] ", settings_path.display());
+            print!("Patch {} with Obliterate hook? [y/N] ", settings_path.display());
             std::io::Write::flush(&mut std::io::stdout())?;
             let mut answer = String::new();
             std::io::stdin().read_line(&mut answer)?;
@@ -3788,19 +3804,19 @@ fn uninstall_gemini(ctx: InitContext) -> Result<Vec<String>> {
                 arr.retain(|h| {
                     !h.pointer("/hooks/0/command")
                         .and_then(|v| v.as_str())
-                        .is_some_and(|c| c.contains("rtk"))
+                        .is_some_and(|c| c.contains("obliterate"))
                 });
                 if arr.len() < before {
                     if dry_run {
                         println!(
-                            "[dry-run] would remove RTK hook from Gemini settings.json: {}",
+                            "[dry-run] would remove Obliterate hook from Gemini settings.json: {}",
                             settings_path.display()
                         );
                     } else {
                         let new_content = serde_json::to_string_pretty(&settings)?;
                         fs::write(&settings_path, new_content)?;
                     }
-                    removed.push("Gemini settings.json: removed RTK hook entry".to_string());
+                    removed.push("Gemini settings.json: removed Obliterate hook entry".to_string());
                 }
             }
         }
@@ -3829,61 +3845,81 @@ const COPILOT_HOOK_JSON: &str = r#"{
 }
 "#;
 
-const COPILOT_INSTRUCTIONS: &str = r#"<!-- rtk-instructions v2 -->
-# RTK — Token-Optimized CLI
+const COPILOT_INSTRUCTIONS: &str = r#"<!-- obliterate-instructions v2 -->
+# Obliterate — Token-Optimized CLI
 
-**rtk** is a CLI proxy that filters and compresses command outputs, saving 60-90% tokens.
+**obliterate** is a CLI proxy that filters and compresses command outputs, saving 60-90% tokens.
 
 ## Rule
 
-Always prefix shell commands with `rtk`:
+Always prefix shell commands with `obliterate`:
 
 ```bash
 # Instead of:              Use:
-git status                 rtk git status
-git log -10                rtk git log -10
-cargo test                 rtk cargo test
-docker ps                  rtk docker ps
-kubectl get pods           rtk kubectl pods
+git status                 obliterate git status
+git log -10                obliterate git log -10
+cargo test                 obliterate cargo test
+docker ps                  obliterate docker ps
+kubectl get pods           obliterate kubectl pods
 ```
 
 ## Meta commands (use directly)
 
 ```bash
-rtk gain              # Token savings dashboard
-rtk gain --history    # Per-command savings history
-rtk discover          # Find missed rtk opportunities
-rtk proxy <cmd>       # Run raw (no filtering) but track usage
+obliterate gain              # Token savings dashboard
+obliterate gain --history    # Per-command savings history
+obliterate discover          # Find missed obliterate opportunities
+obliterate proxy <cmd>       # Run raw (no filtering) but track usage
 ```
-<!-- /rtk-instructions -->
+<!-- /obliterate-instructions -->
 "#;
 
 /// Entry point for `obliterate init --copilot`.
 ///
-/// Installs in the current working directory's `.github/` subdirectory.
-pub fn run_copilot(ctx: InitContext) -> Result<()> {
-    run_copilot_at(Path::new("."), ctx)
+/// Project scope installs to `./.github/`.
+/// Global scope installs to `~/.copilot/`.
+pub fn run_copilot(global: bool, ctx: InitContext) -> Result<()> {
+    if global {
+        let copilot_dir = resolve_copilot_dir()?;
+        run_copilot_at(&copilot_dir, true, ctx)
+    } else {
+        run_copilot_at(Path::new("."), false, ctx)
+    }
 }
 
 /// Same as [`run_copilot`] but operates relative to an explicit base path.
 ///
 /// Used by tests to avoid mutating process-global `cwd` (which is racy under
 /// `cargo test`'s default parallel execution).
-fn run_copilot_at(base: &Path, ctx: InitContext) -> Result<()> {
+fn run_copilot_at(base: &Path, global: bool, ctx: InitContext) -> Result<()> {
     let InitContext { dry_run, .. } = ctx;
-    let github_dir = base.join(".github");
-    let hooks_dir = github_dir.join("hooks");
+    let (instructions_path, hook_path, hook_dir) = if global {
+        let hooks_dir = base.join("hooks");
+        (
+            base.join("copilot-instructions.md"),
+            hooks_dir.join("obliterate-rewrite.json"),
+            hooks_dir,
+        )
+    } else {
+        let github_dir = base.join(".github");
+        let hooks_dir = github_dir.join("hooks");
+        (
+            github_dir.join("copilot-instructions.md"),
+            hooks_dir.join("obliterate-rewrite.json"),
+            hooks_dir,
+        )
+    };
 
     if !dry_run {
-        fs::create_dir_all(&hooks_dir)
-            .with_context(|| format!("Failed to create {} directory", hooks_dir.display()))?;
+        fs::create_dir_all(&hook_dir)
+            .with_context(|| format!("Failed to create {} directory", hook_dir.display()))?;
     }
 
-    // 1. Upsert RTK marker block in copilot-instructions.md (preserves user content).
+    // 1. Upsert Obliterate marker block in copilot-instructions.md (preserves user content).
     //    Done BEFORE writing the hook config so a malformed file aborts the install
     //    without leaving a stale hook on disk.
     let instructions_path = github_dir.join("copilot-instructions.md");
-    write_rtk_block(
+    write_obliterate_block(
         &instructions_path,
         COPILOT_INSTRUCTIONS,
         "Copilot instructions",
@@ -3892,13 +3928,15 @@ fn run_copilot_at(base: &Path, ctx: InitContext) -> Result<()> {
     )?;
 
     // 2. Write hook config (only reached if the upsert above succeeded).
-    let hook_path = hooks_dir.join("rtk-rewrite.json");
     write_if_changed(&hook_path, COPILOT_HOOK_JSON, "Copilot hook config", ctx)?;
 
     if dry_run {
         print_dry_run_footer();
     } else {
-        println!("\nGitHub Copilot integration installed (project-scoped).\n");
+        println!(
+            "\nGitHub Copilot integration installed ({}-scoped).\n",
+            if global { "global" } else { "project" }
+        );
         println!("  Hook config:    {}", hook_path.display());
         println!("  Instructions:   {}", instructions_path.display());
         println!("\n  Works with VS Code Copilot Chat (transparent rewrite)");
@@ -3909,6 +3947,13 @@ fn run_copilot_at(base: &Path, ctx: InitContext) -> Result<()> {
     Ok(())
 }
 
+fn resolve_copilot_dir() -> Result<PathBuf> {
+    if let Ok(dir) = std::env::var("OBLITERATE_COPILOT_DIR") {
+        return Ok(PathBuf::from(dir));
+    }
+    resolve_home_subdir(".copilot")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3917,25 +3962,25 @@ mod tests {
     #[test]
     fn test_init_mentions_all_top_level_commands() {
         for cmd in [
-            "rtk cargo",
-            "rtk gh",
-            "rtk vitest",
-            "rtk tsc",
-            "rtk lint",
-            "rtk prettier",
-            "rtk next",
-            "rtk playwright",
-            "rtk prisma",
-            "rtk pnpm",
-            "rtk npm",
-            "rtk curl",
-            "rtk git",
-            "rtk docker",
-            "rtk kubectl",
+            "obliterate cargo",
+            "obliterate gh",
+            "obliterate vitest",
+            "obliterate tsc",
+            "obliterate lint",
+            "obliterate prettier",
+            "obliterate next",
+            "obliterate playwright",
+            "obliterate prisma",
+            "obliterate pnpm",
+            "obliterate npm",
+            "obliterate curl",
+            "obliterate git",
+            "obliterate docker",
+            "obliterate kubectl",
         ] {
             assert!(
-                RTK_INSTRUCTIONS.contains(cmd),
-                "Missing {cmd} in RTK_INSTRUCTIONS"
+                OBLITERATE_INSTRUCTIONS.contains(cmd),
+                "Missing {cmd} in OBLITERATE_INSTRUCTIONS"
             );
         }
     }
@@ -3943,25 +3988,25 @@ mod tests {
     #[test]
     fn test_init_has_version_marker() {
         assert!(
-            RTK_INSTRUCTIONS.contains(RTK_BLOCK_START),
-            "RTK_INSTRUCTIONS must start with RTK_BLOCK_START marker"
+            OBLITERATE_INSTRUCTIONS.contains(OBLITERATE_BLOCK_START),
+            "OBLITERATE_INSTRUCTIONS must start with OBLITERATE_BLOCK_START marker"
         );
         assert!(
-            RTK_INSTRUCTIONS.contains(RTK_BLOCK_END),
-            "RTK_INSTRUCTIONS must end with RTK_BLOCK_END marker"
+            OBLITERATE_INSTRUCTIONS.contains(OBLITERATE_BLOCK_END),
+            "OBLITERATE_INSTRUCTIONS must end with OBLITERATE_BLOCK_END marker"
         );
     }
 
     #[test]
     fn test_migration_removes_old_block() {
         let input = format!(
-            "# My Config\n\n{} v2 -->\nOLD RTK STUFF\n{}\n\nMore content",
-            RTK_BLOCK_START, RTK_BLOCK_END
+            "# My Config\n\n{} v2 -->\nOLD Obliterate STUFF\n{}\n\nMore content",
+            OBLITERATE_BLOCK_START, OBLITERATE_BLOCK_END
         );
 
-        let (result, migrated) = remove_rtk_block(&input);
+        let (result, migrated) = remove_obliterate_block(&input);
         assert!(migrated);
-        assert!(!result.contains("OLD RTK STUFF"));
+        assert!(!result.contains("OLD Obliterate STUFF"));
         assert!(result.contains("# My Config"));
         assert!(result.contains("More content"));
     }
@@ -4004,75 +4049,75 @@ mod tests {
 
     #[test]
     fn test_migration_warns_on_missing_end_marker() {
-        let input = format!("{} v2 -->\nOLD STUFF\nNo end marker", RTK_BLOCK_START);
-        let (result, migrated) = remove_rtk_block(&input);
+        let input = format!("{} v2 -->\nOLD STUFF\nNo end marker", OBLITERATE_BLOCK_START);
+        let (result, migrated) = remove_obliterate_block(&input);
         assert!(!migrated);
         assert_eq!(result, input);
     }
 
     #[test]
-    fn test_default_mode_creates_rtk_md() {
+    fn test_default_mode_creates_obliterate_md() {
         let temp = TempDir::new().unwrap();
-        let rtk_md_path = temp.path().join("RTK.md");
+        let obliterate_md_path = temp.path().join("Obliterate.md");
 
-        fs::write(&rtk_md_path, RTK_SLIM).unwrap();
-        assert!(rtk_md_path.exists());
+        fs::write(&obliterate_md_path, OBLITERATE_SLIM).unwrap();
+        assert!(obliterate_md_path.exists());
 
-        let content = fs::read_to_string(&rtk_md_path).unwrap();
-        assert_eq!(content, RTK_SLIM);
+        let content = fs::read_to_string(&obliterate_md_path).unwrap();
+        assert_eq!(content, OBLITERATE_SLIM);
     }
 
     #[test]
     fn test_claude_md_mode_creates_full_injection() {
-        // Just verify RTK_INSTRUCTIONS constant has the right content
-        assert!(RTK_INSTRUCTIONS.contains(RTK_BLOCK_START));
-        assert!(RTK_INSTRUCTIONS.contains("rtk cargo test"));
-        assert!(RTK_INSTRUCTIONS.contains(RTK_BLOCK_END));
-        assert!(RTK_INSTRUCTIONS.len() > 4000);
+        // Just verify OBLITERATE_INSTRUCTIONS constant has the right content
+        assert!(OBLITERATE_INSTRUCTIONS.contains(OBLITERATE_BLOCK_START));
+        assert!(OBLITERATE_INSTRUCTIONS.contains("obliterate cargo test"));
+        assert!(OBLITERATE_INSTRUCTIONS.contains(OBLITERATE_BLOCK_END));
+        assert!(OBLITERATE_INSTRUCTIONS.len() > 4000);
     }
 
-    // --- upsert_rtk_block tests ---
+    // --- upsert_obliterate_block tests ---
 
     #[test]
-    fn test_upsert_rtk_block_appends_when_missing() {
+    fn test_upsert_obliterate_block_appends_when_missing() {
         let input = "# Team instructions";
-        let (content, action) = upsert_rtk_block(input, RTK_INSTRUCTIONS);
-        assert_eq!(action, RtkBlockUpsert::Added);
+        let (content, action) = upsert_obliterate_block(input, OBLITERATE_INSTRUCTIONS);
+        assert_eq!(action, ObliterateBlockUpsert::Added);
         assert!(content.contains("# Team instructions"));
-        assert!(content.contains(RTK_BLOCK_START));
+        assert!(content.contains(OBLITERATE_BLOCK_START));
     }
 
     #[test]
-    fn test_upsert_rtk_block_updates_stale_block() {
+    fn test_upsert_obliterate_block_updates_stale_block() {
         let input = format!(
-            "# Team instructions\n\n{} v1 -->\nOLD RTK CONTENT\n{}\n\nMore notes\n",
-            RTK_BLOCK_START, RTK_BLOCK_END
+            "# Team instructions\n\n{} v1 -->\nOLD Obliterate CONTENT\n{}\n\nMore notes\n",
+            OBLITERATE_BLOCK_START, OBLITERATE_BLOCK_END
         );
 
-        let (content, action) = upsert_rtk_block(&input, RTK_INSTRUCTIONS);
-        assert_eq!(action, RtkBlockUpsert::Updated);
-        assert!(!content.contains("OLD RTK CONTENT"));
-        assert!(content.contains("rtk cargo test")); // from current RTK_INSTRUCTIONS
+        let (content, action) = upsert_obliterate_block(&input, OBLITERATE_INSTRUCTIONS);
+        assert_eq!(action, ObliterateBlockUpsert::Updated);
+        assert!(!content.contains("OLD Obliterate CONTENT"));
+        assert!(content.contains("obliterate cargo test")); // from current OBLITERATE_INSTRUCTIONS
         assert!(content.contains("# Team instructions"));
         assert!(content.contains("More notes"));
     }
 
     #[test]
-    fn test_upsert_rtk_block_noop_when_already_current() {
+    fn test_upsert_obliterate_block_noop_when_already_current() {
         let input = format!(
             "# Team instructions\n\n{}\n\nMore notes\n",
-            RTK_INSTRUCTIONS
+            OBLITERATE_INSTRUCTIONS
         );
-        let (content, action) = upsert_rtk_block(&input, RTK_INSTRUCTIONS);
-        assert_eq!(action, RtkBlockUpsert::Unchanged);
+        let (content, action) = upsert_obliterate_block(&input, OBLITERATE_INSTRUCTIONS);
+        assert_eq!(action, ObliterateBlockUpsert::Unchanged);
         assert_eq!(content, input);
     }
 
     #[test]
-    fn test_upsert_rtk_block_detects_malformed_block() {
-        let input = format!("{} v2 -->\npartial", RTK_BLOCK_START);
-        let (content, action) = upsert_rtk_block(&input, RTK_INSTRUCTIONS);
-        assert_eq!(action, RtkBlockUpsert::Malformed);
+    fn test_upsert_obliterate_block_detects_malformed_block() {
+        let input = format!("{} v2 -->\npartial", OBLITERATE_BLOCK_START);
+        let (content, action) = upsert_obliterate_block(&input, OBLITERATE_INSTRUCTIONS);
+        assert_eq!(action, ObliterateBlockUpsert::Malformed);
         assert_eq!(content, input);
     }
 
@@ -4094,8 +4139,8 @@ mod tests {
         let agents_md = temp.path().join("AGENTS.md");
 
         fs::write(&agents_md, "# Team rules\n").unwrap();
-        let first_added = patch_agents_md(&agents_md, RTK_MD_REF, InitContext::default()).unwrap();
-        let second_added = patch_agents_md(&agents_md, RTK_MD_REF, InitContext::default()).unwrap();
+        let first_added = patch_agents_md(&agents_md, OBLITERATE_MD_REF, InitContext::default()).unwrap();
+        let second_added = patch_agents_md(&agents_md, OBLITERATE_MD_REF, InitContext::default()).unwrap();
 
         assert!(first_added);
         assert!(!second_added);
@@ -4153,10 +4198,10 @@ mod tests {
         let temp = TempDir::new().unwrap();
         run_kilocode_mode_at(temp.path(), InitContext::default()).unwrap();
 
-        let rules_path = temp.path().join(".kilocode/rules/rtk-rules.md");
+        let rules_path = temp.path().join(".kilocode/rules/obliterate-rules.md");
         assert!(rules_path.exists(), "Rules file should be created");
         let content = fs::read_to_string(&rules_path).unwrap();
-        assert!(content.contains("RTK"), "Rules file should contain RTK");
+        assert!(content.contains("Obliterate"), "Rules file should contain Obliterate");
     }
 
     #[test]
@@ -4164,7 +4209,7 @@ mod tests {
         let temp = TempDir::new().unwrap();
         run_kilocode_mode_at(temp.path(), InitContext::default()).unwrap();
 
-        let path = temp.path().join(".kilocode/rules/rtk-rules.md");
+        let path = temp.path().join(".kilocode/rules/obliterate-rules.md");
         let first = fs::read_to_string(&path).unwrap();
 
         // Second run should not overwrite
@@ -4178,10 +4223,10 @@ mod tests {
         let temp = TempDir::new().unwrap();
         run_antigravity_mode_at(temp.path(), InitContext::default()).unwrap();
 
-        let rules_path = temp.path().join(".agents/rules/antigravity-rtk-rules.md");
+        let rules_path = temp.path().join(".agents/rules/antigravity-obliterate-rules.md");
         assert!(rules_path.exists(), "Rules file should be created");
         let content = fs::read_to_string(&rules_path).unwrap();
-        assert!(content.contains("RTK"), "Rules file should contain RTK");
+        assert!(content.contains("Obliterate"), "Rules file should contain Obliterate");
     }
 
     #[test]
@@ -4189,7 +4234,7 @@ mod tests {
         let temp = TempDir::new().unwrap();
         run_antigravity_mode_at(temp.path(), InitContext::default()).unwrap();
 
-        let path = temp.path().join(".agents/rules/antigravity-rtk-rules.md");
+        let path = temp.path().join(".agents/rules/antigravity-obliterate-rules.md");
         let first = fs::read_to_string(&path).unwrap();
 
         // Second run should not overwrite
@@ -4203,7 +4248,7 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let agents_md = temp.path().join("AGENTS.md");
 
-        let added = patch_agents_md(&agents_md, RTK_MD_REF, InitContext::default()).unwrap();
+        let added = patch_agents_md(&agents_md, OBLITERATE_MD_REF, InitContext::default()).unwrap();
 
         assert!(added);
         let content = fs::read_to_string(&agents_md).unwrap();
@@ -4218,12 +4263,12 @@ mod tests {
             &agents_md,
             format!(
                 "# Team rules\n\n{} v2 -->\nold\n{}\n",
-                RTK_BLOCK_START, RTK_BLOCK_END
+                OBLITERATE_BLOCK_START, OBLITERATE_BLOCK_END
             ),
         )
         .unwrap();
 
-        let added = patch_agents_md(&agents_md, RTK_MD_REF, InitContext::default()).unwrap();
+        let added = patch_agents_md(&agents_md, OBLITERATE_MD_REF, InitContext::default()).unwrap();
 
         assert!(added);
         let content = fs::read_to_string(&agents_md).unwrap();
@@ -4236,7 +4281,7 @@ mod tests {
         let temp = TempDir::new().unwrap();
         run_hermes_mode_at(temp.path(), InitContext::default()).unwrap();
 
-        let plugin_dir = temp.path().join("plugins/rtk-rewrite");
+        let plugin_dir = temp.path().join("plugins/obliterate-rewrite");
         let init_path = plugin_dir.join("__init__.py");
         let manifest_path = plugin_dir.join("plugin.yaml");
         let config_path = temp.path().join("config.yaml");
@@ -4245,17 +4290,17 @@ mod tests {
         assert!(manifest_path.exists(), "Plugin manifest should be created");
         assert_eq!(
             fs::read_to_string(&init_path).unwrap(),
-            include_str!("../../hooks/hermes/rtk-rewrite/__init__.py")
+            include_str!("../../hooks/hermes/obliterate-rewrite/__init__.py")
         );
         assert_eq!(
             fs::read_to_string(&manifest_path).unwrap(),
-            include_str!("../../hooks/hermes/rtk-rewrite/plugin.yaml")
+            include_str!("../../hooks/hermes/obliterate-rewrite/plugin.yaml")
         );
 
         let config = fs::read_to_string(&config_path).unwrap();
         assert!(config.contains("plugins:\n"));
         assert!(config.contains("  enabled:\n"));
-        assert_eq!(config.matches("rtk-rewrite").count(), 1);
+        assert_eq!(config.matches("obliterate-rewrite").count(), 1);
     }
 
     #[test]
@@ -4278,7 +4323,7 @@ mod tests {
         assert!(first.contains("    - existing-plugin\n"));
         assert!(first.contains("  search_path: ./plugins\n"));
         assert!(first.contains("other: true\n"));
-        assert_eq!(first.matches("rtk-rewrite").count(), 1);
+        assert_eq!(first.matches("obliterate-rewrite").count(), 1);
     }
 
     #[test]
@@ -4296,13 +4341,13 @@ mod tests {
         run_hermes_mode_at(temp.path(), InitContext::default()).unwrap();
         let second = fs::read_to_string(&config_path).unwrap();
 
-        let expected = "theme: dark\nplugins:\n disabled:\n - google_meet\n - spotify\n enabled:\n - disk-cleanup\n - rtk-rewrite\n search_path: ./plugins\nother: true\n";
+        let expected = "theme: dark\nplugins:\n disabled:\n - google_meet\n - spotify\n enabled:\n - disk-cleanup\n - obliterate-rewrite\n search_path: ./plugins\nother: true\n";
         assert_eq!(first, expected);
         assert_eq!(
             second, expected,
             "Hermes PyYAML config patch should be idempotent"
         );
-        assert_eq!(first.matches("rtk-rewrite").count(), 1);
+        assert_eq!(first.matches("obliterate-rewrite").count(), 1);
     }
 
     #[test]
@@ -4327,10 +4372,10 @@ mod tests {
         run_hermes_mode_at(hermes_home, InitContext::default()).unwrap();
         let second = fs::read_to_string(&config_path).unwrap();
 
-        let installed = "theme: dark\nplugins:\n disabled:\n - google_meet\n - spotify\n search_path: ./plugins\n enabled:\n - rtk-rewrite\nother: true\n";
+        let installed = "theme: dark\nplugins:\n disabled:\n - google_meet\n - spotify\n search_path: ./plugins\n enabled:\n - obliterate-rewrite\nother: true\n";
         assert_eq!(first, installed);
         assert_eq!(second, installed);
-        assert_eq!(first.matches("rtk-rewrite").count(), 1);
+        assert_eq!(first.matches("obliterate-rewrite").count(), 1);
         assert!(plugin_dir.exists());
         assert_eq!(fs::read_to_string(&other_plugin_file).unwrap(), "keep");
 
@@ -4350,7 +4395,7 @@ mod tests {
         );
         assert!(!uninstalled.contains("\n - \n"));
         assert!(!uninstalled.contains("\n -\n"));
-        assert_eq!(uninstalled.matches("rtk-rewrite").count(), 0);
+        assert_eq!(uninstalled.matches("obliterate-rewrite").count(), 0);
     }
 
     #[test]
@@ -4364,12 +4409,12 @@ mod tests {
         let config_path = hermes_home.join("config.yaml");
 
         fs::create_dir_all(nested_plugin_file.parent().unwrap()).unwrap();
-        fs::write(&nested_plugin_file, "rtk").unwrap();
+        fs::write(&nested_plugin_file, "obliterate").unwrap();
         fs::create_dir_all(&other_plugin_dir).unwrap();
         fs::write(&other_plugin_file, "keep").unwrap();
         fs::write(
             &config_path,
-            "theme: dark\nplugins:\n  enabled:\n    - existing-plugin\n    - rtk-rewrite\n  search_path: ./plugins\nother: true\n",
+            "theme: dark\nplugins:\n  enabled:\n    - existing-plugin\n    - obliterate-rewrite\n  search_path: ./plugins\nother: true\n",
         )
         .unwrap();
 
@@ -4387,7 +4432,7 @@ mod tests {
         assert!(config.contains("    - existing-plugin\n"));
         assert!(config.contains("  search_path: ./plugins\n"));
         assert!(config.contains("other: true\n"));
-        assert_eq!(config.matches("rtk-rewrite").count(), 0);
+        assert_eq!(config.matches("obliterate-rewrite").count(), 0);
     }
 
     #[test]
@@ -4401,12 +4446,12 @@ mod tests {
         let config_path = hermes_home.join("config.yaml");
 
         fs::create_dir_all(nested_plugin_file.parent().unwrap()).unwrap();
-        fs::write(&nested_plugin_file, "rtk").unwrap();
+        fs::write(&nested_plugin_file, "obliterate").unwrap();
         fs::create_dir_all(&other_plugin_dir).unwrap();
         fs::write(&other_plugin_file, "keep").unwrap();
         fs::write(
             &config_path,
-            "theme: dark\nplugins:\n disabled:\n - google_meet\n - spotify\n enabled:\n - disk-cleanup\n - rtk-rewrite\n search_path: ./plugins\nother: true\n",
+            "theme: dark\nplugins:\n disabled:\n - google_meet\n - spotify\n enabled:\n - disk-cleanup\n - obliterate-rewrite\n search_path: ./plugins\nother: true\n",
         )
         .unwrap();
 
@@ -4426,7 +4471,7 @@ mod tests {
         );
         assert!(!config.contains("\n - \n"));
         assert!(!config.contains("\n -\n"));
-        assert_eq!(config.matches("rtk-rewrite").count(), 0);
+        assert_eq!(config.matches("obliterate-rewrite").count(), 0);
     }
 
     #[test]
@@ -4451,18 +4496,18 @@ mod tests {
         assert!(patched.contains("theme: dark\n"));
         assert!(patched.contains("plugins:\n"));
         assert!(patched.contains("  search_path: ./plugins\n"));
-        assert!(patched.contains("  enabled:\n    - rtk-rewrite\n"));
+        assert!(patched.contains("  enabled:\n    - obliterate-rewrite\n"));
         assert!(patched.contains("other: true\n"));
-        assert_eq!(patched.matches("rtk-rewrite").count(), 1);
+        assert_eq!(patched.matches("obliterate-rewrite").count(), 1);
     }
 
     #[test]
-    fn test_hermes_config_patch_removes_duplicate_rtk_rewrite() {
-        let existing = "plugins:\n  enabled:\n    - rtk-rewrite\n    - other\n    - rtk-rewrite\n";
+    fn test_hermes_config_patch_removes_duplicate_obliterate_rewrite() {
+        let existing = "plugins:\n  enabled:\n    - obliterate-rewrite\n    - other\n    - obliterate-rewrite\n";
         let patched = patch_hermes_config(existing);
 
         assert!(patched.contains("    - other\n"));
-        assert_eq!(patched.matches("rtk-rewrite").count(), 1);
+        assert_eq!(patched.matches("obliterate-rewrite").count(), 1);
     }
 
     #[test]
@@ -4474,9 +4519,9 @@ mod tests {
 
         assert_eq!(
             patched,
-            "plugins:\n disabled:\n - google_meet\n - spotify\n enabled:\n - disk-cleanup\n - rtk-rewrite\n"
+            "plugins:\n disabled:\n - google_meet\n - spotify\n enabled:\n - disk-cleanup\n - obliterate-rewrite\n"
         );
-        assert_eq!(patched.matches("rtk-rewrite").count(), 1);
+        assert_eq!(patched.matches("obliterate-rewrite").count(), 1);
     }
 
     #[test]
@@ -4485,8 +4530,8 @@ mod tests {
 
         let patched = patch_hermes_config(existing);
 
-        assert_eq!(patched, "plugins:\n  enabled:\n  - foo\n  - rtk-rewrite\n");
-        assert_eq!(patched.matches("rtk-rewrite").count(), 1);
+        assert_eq!(patched, "plugins:\n  enabled:\n  - foo\n  - obliterate-rewrite\n");
+        assert_eq!(patched.matches("obliterate-rewrite").count(), 1);
     }
 
     #[test]
@@ -4498,9 +4543,9 @@ mod tests {
 
         assert_eq!(
             patched,
-            "plugins:\n disabled:\n - google_meet\n - spotify\n search_path: ./plugins\n enabled:\n - rtk-rewrite\n"
+            "plugins:\n disabled:\n - google_meet\n - spotify\n search_path: ./plugins\n enabled:\n - obliterate-rewrite\n"
         );
-        assert_eq!(patched.matches("rtk-rewrite").count(), 1);
+        assert_eq!(patched.matches("obliterate-rewrite").count(), 1);
     }
 
     #[test]
@@ -4512,10 +4557,10 @@ mod tests {
 
         assert_eq!(
             patched_once,
-            "plugins:\n enabled:\n - disk-cleanup\n - rtk-rewrite\n disabled:\n - spotify\n"
+            "plugins:\n enabled:\n - disk-cleanup\n - obliterate-rewrite\n disabled:\n - spotify\n"
         );
         assert_eq!(patched_twice, patched_once);
-        assert_eq!(patched_once.matches("rtk-rewrite").count(), 1);
+        assert_eq!(patched_once.matches("obliterate-rewrite").count(), 1);
     }
 
     #[test]
@@ -4526,9 +4571,9 @@ mod tests {
 
         assert_eq!(
             patched,
-            "plugins:\n enabled:\n - disk-cleanup\n - rtk-rewrite\n"
+            "plugins:\n enabled:\n - disk-cleanup\n - obliterate-rewrite\n"
         );
-        assert_eq!(patched.matches("rtk-rewrite").count(), 1);
+        assert_eq!(patched.matches("obliterate-rewrite").count(), 1);
     }
 
     #[test]
@@ -4539,9 +4584,9 @@ mod tests {
 
         assert_eq!(
             patched,
-            "plugins:\n  enabled:\n    - existing-plugin\n    - rtk-rewrite\n"
+            "plugins:\n  enabled:\n    - existing-plugin\n    - obliterate-rewrite\n"
         );
-        assert_eq!(patched.matches("rtk-rewrite").count(), 1);
+        assert_eq!(patched.matches("obliterate-rewrite").count(), 1);
     }
 
     #[test]
@@ -4552,9 +4597,9 @@ mod tests {
 
         assert_eq!(
             patched,
-            "plugins:\n  search_path: ./plugins\n  enabled:\n    - rtk-rewrite\n"
+            "plugins:\n  search_path: ./plugins\n  enabled:\n    - obliterate-rewrite\n"
         );
-        assert_eq!(patched.matches("rtk-rewrite").count(), 1);
+        assert_eq!(patched.matches("obliterate-rewrite").count(), 1);
     }
 
     #[test]
@@ -4563,34 +4608,34 @@ mod tests {
 
         let patched = patch_hermes_config(existing);
 
-        assert_eq!(patched, "plugins:\n  enabled:\n    - rtk-rewrite\n");
-        assert_eq!(patched.matches("rtk-rewrite").count(), 1);
+        assert_eq!(patched, "plugins:\n  enabled:\n    - obliterate-rewrite\n");
+        assert_eq!(patched.matches("obliterate-rewrite").count(), 1);
     }
 
     #[test]
     fn test_hermes_config_patch_inline_enabled_is_idempotent() {
-        let existing = "theme: dark\nplugins:\n  enabled: [existing-plugin, rtk-rewrite] # keep\n  search_path: ./plugins\nother: true\n";
+        let existing = "theme: dark\nplugins:\n  enabled: [existing-plugin, obliterate-rewrite] # keep\n  search_path: ./plugins\nother: true\n";
 
         let patched = patch_hermes_config(existing);
 
         assert_eq!(patched, existing);
         assert_eq!(patch_hermes_config(&patched), patched);
-        assert_eq!(patched.matches("rtk-rewrite").count(), 1);
+        assert_eq!(patched.matches("obliterate-rewrite").count(), 1);
     }
 
     #[test]
     fn test_hermes_config_patch_inline_enabled_without_final_newline_is_idempotent() {
-        let existing = "plugins:\n  enabled: [existing-plugin, rtk-rewrite]";
+        let existing = "plugins:\n  enabled: [existing-plugin, obliterate-rewrite]";
 
         let patched = patch_hermes_config(existing);
 
         assert_eq!(patched, existing);
         assert_eq!(patch_hermes_config(&patched), patched);
-        assert_eq!(patched.matches("rtk-rewrite").count(), 1);
+        assert_eq!(patched.matches("obliterate-rewrite").count(), 1);
     }
 
     #[test]
-    fn test_hermes_config_unpatch_inline_enabled_without_rtk_preserves_missing_final_newline() {
+    fn test_hermes_config_unpatch_inline_enabled_without_obliterate_preserves_missing_final_newline() {
         let existing = "plugins:\n  enabled: [existing-plugin]";
 
         let patched = unpatch_hermes_config(existing);
@@ -4600,7 +4645,7 @@ mod tests {
 
     #[test]
     fn test_hermes_config_unpatch_inline_enabled_preserves_unrelated_entries() {
-        let existing = "theme: dark\nplugins:\n  enabled: [alpha, rtk-rewrite, beta] # keep comment\n  search_path: ./plugins\nother: true\n";
+        let existing = "theme: dark\nplugins:\n  enabled: [alpha, obliterate-rewrite, beta] # keep comment\n  search_path: ./plugins\nother: true\n";
 
         let patched = unpatch_hermes_config(existing);
 
@@ -4608,42 +4653,42 @@ mod tests {
             patched,
             "theme: dark\nplugins:\n  enabled: [alpha, beta] # keep comment\n  search_path: ./plugins\nother: true\n"
         );
-        assert_eq!(patched.matches("rtk-rewrite").count(), 0);
+        assert_eq!(patched.matches("obliterate-rewrite").count(), 0);
     }
 
     #[test]
     fn test_hermes_config_unpatch_inline_enabled_final_line_without_newline() {
-        let existing = "plugins:\n  enabled: [existing-plugin, rtk-rewrite]";
+        let existing = "plugins:\n  enabled: [existing-plugin, obliterate-rewrite]";
 
         let patched = unpatch_hermes_config(existing);
 
         assert_eq!(patched, "plugins:\n  enabled: [existing-plugin]");
-        assert_eq!(patched.matches("rtk-rewrite").count(), 0);
+        assert_eq!(patched.matches("obliterate-rewrite").count(), 0);
     }
 
     #[test]
-    fn test_hermes_config_unpatch_removes_duplicate_inline_rtk_rewrite() {
-        let existing = "plugins:\n  enabled: [alpha, rtk-rewrite, beta, rtk-rewrite]\n";
+    fn test_hermes_config_unpatch_removes_duplicate_inline_obliterate_rewrite() {
+        let existing = "plugins:\n  enabled: [alpha, obliterate-rewrite, beta, obliterate-rewrite]\n";
 
         let patched = unpatch_hermes_config(existing);
 
         assert_eq!(patched, "plugins:\n  enabled: [alpha, beta]\n");
-        assert_eq!(patched.matches("rtk-rewrite").count(), 0);
+        assert_eq!(patched.matches("obliterate-rewrite").count(), 0);
     }
 
     #[test]
-    fn test_hermes_config_unpatch_removes_duplicate_block_rtk_rewrite() {
-        let existing = "plugins:\n  enabled:\n    - rtk-rewrite\n    - other\n    - rtk-rewrite\n";
+    fn test_hermes_config_unpatch_removes_duplicate_block_obliterate_rewrite() {
+        let existing = "plugins:\n  enabled:\n    - obliterate-rewrite\n    - other\n    - obliterate-rewrite\n";
 
         let patched = unpatch_hermes_config(existing);
 
         assert_eq!(patched, "plugins:\n  enabled:\n    - other\n");
-        assert_eq!(patched.matches("rtk-rewrite").count(), 0);
+        assert_eq!(patched.matches("obliterate-rewrite").count(), 0);
     }
 
     #[test]
     fn test_hermes_config_unpatch_pyyaml_indentationless_enabled_list() {
-        let existing = "plugins:\n disabled:\n - google_meet\n - spotify\n enabled:\n - disk-cleanup\n - rtk-rewrite\n search_path: ./plugins\n";
+        let existing = "plugins:\n disabled:\n - google_meet\n - spotify\n enabled:\n - disk-cleanup\n - obliterate-rewrite\n search_path: ./plugins\n";
 
         let patched = unpatch_hermes_config(existing);
 
@@ -4651,31 +4696,31 @@ mod tests {
             patched,
             "plugins:\n disabled:\n - google_meet\n - spotify\n enabled:\n - disk-cleanup\n search_path: ./plugins\n"
         );
-        assert_eq!(patched.matches("rtk-rewrite").count(), 0);
+        assert_eq!(patched.matches("obliterate-rewrite").count(), 0);
     }
 
     #[test]
-    fn test_hermes_config_unpatch_pyyaml_indentationless_only_rtk_collapses_to_empty() {
-        let existing = "plugins:\n enabled:\n - rtk-rewrite\n search_path: ./plugins\n";
+    fn test_hermes_config_unpatch_pyyaml_indentationless_only_obliterate_collapses_to_empty() {
+        let existing = "plugins:\n enabled:\n - obliterate-rewrite\n search_path: ./plugins\n";
 
         let patched = unpatch_hermes_config(existing);
 
         assert_eq!(patched, "plugins:\n enabled: []\n search_path: ./plugins\n");
-        assert_eq!(patched.matches("rtk-rewrite").count(), 0);
+        assert_eq!(patched.matches("obliterate-rewrite").count(), 0);
     }
 
     #[test]
     fn test_hermes_config_unpatch_block_enabled_final_line_without_newline() {
-        let existing = "plugins:\n  enabled:\n    - existing-plugin\n    - rtk-rewrite";
+        let existing = "plugins:\n  enabled:\n    - existing-plugin\n    - obliterate-rewrite";
 
         let patched = unpatch_hermes_config(existing);
 
         assert_eq!(patched, "plugins:\n  enabled:\n    - existing-plugin\n");
-        assert_eq!(patched.matches("rtk-rewrite").count(), 0);
+        assert_eq!(patched.matches("obliterate-rewrite").count(), 0);
     }
 
     #[test]
-    fn test_hermes_config_unpatch_block_enabled_without_rtk_preserves_missing_final_newline() {
+    fn test_hermes_config_unpatch_block_enabled_without_obliterate_preserves_missing_final_newline() {
         let existing = "plugins:\n  enabled:\n    - existing-plugin";
 
         let patched = unpatch_hermes_config(existing);
@@ -4685,7 +4730,7 @@ mod tests {
 
     #[test]
     fn test_hermes_config_unpatch_preserves_quoted_exact_values() {
-        let existing = "plugins:\n  enabled:\n    - 'alpha'\n    - \"rtk-rewrite\"\n    - 'beta'\n  search_path: ./plugins\n";
+        let existing = "plugins:\n  enabled:\n    - 'alpha'\n    - \"obliterate-rewrite\"\n    - 'beta'\n  search_path: ./plugins\n";
 
         let patched = unpatch_hermes_config(existing);
 
@@ -4693,7 +4738,7 @@ mod tests {
             patched,
             "plugins:\n  enabled:\n    - 'alpha'\n    - 'beta'\n  search_path: ./plugins\n"
         );
-        assert_eq!(patched.matches("rtk-rewrite").count(), 0);
+        assert_eq!(patched.matches("obliterate-rewrite").count(), 0);
     }
 
     #[test]
@@ -4707,33 +4752,33 @@ mod tests {
 
     #[test]
     fn test_hermes_config_unpatch_collapses_empty_enabled_list() {
-        let existing = "plugins:\n  enabled:\n    - rtk-rewrite\n";
+        let existing = "plugins:\n  enabled:\n    - obliterate-rewrite\n";
 
         let patched = unpatch_hermes_config(existing);
 
         assert_eq!(patched, "plugins:\n  enabled: []\n");
-        assert_eq!(patched.matches("rtk-rewrite").count(), 0);
+        assert_eq!(patched.matches("obliterate-rewrite").count(), 0);
     }
 
     #[test]
     fn test_run_codex_mode_global_writes_absolute_reference_to_codex_dir() {
         let temp = TempDir::new().unwrap();
         let agents_md = temp.path().join("AGENTS.md");
-        let rtk_md = temp.path().join("RTK.md");
+        let obliterate_md = temp.path().join("Obliterate.md");
 
         run_codex_mode_with_paths(
             agents_md.clone(),
-            rtk_md.clone(),
+            obliterate_md.clone(),
             true,
             InitContext::default(),
         )
         .unwrap();
 
-        assert!(rtk_md.exists());
-        assert_eq!(fs::read_to_string(&rtk_md).unwrap(), RTK_SLIM_CODEX);
+        assert!(obliterate_md.exists());
+        assert_eq!(fs::read_to_string(&obliterate_md).unwrap(), OBLITERATE_SLIM_CODEX);
         assert_eq!(
             fs::read_to_string(&agents_md).unwrap(),
-            format!("{}\n", codex_rtk_md_ref(temp.path()))
+            format!("{}\n", codex_obliterate_md_ref(temp.path()))
         );
     }
 
@@ -4782,17 +4827,17 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let codex_dir = temp.path();
         let agents_md = codex_dir.join("AGENTS.md");
-        let rtk_md = codex_dir.join("RTK.md");
+        let obliterate_md = codex_dir.join("Obliterate.md");
 
         fs::write(&agents_md, "# Team rules\n\n@OBLITERATE.md\n").unwrap();
-        fs::write(&rtk_md, "codex config").unwrap();
+        fs::write(&obliterate_md, "codex config").unwrap();
 
         let removed_first = uninstall_codex_at(codex_dir, InitContext::default()).unwrap();
         let removed_second = uninstall_codex_at(codex_dir, InitContext::default()).unwrap();
 
         assert_eq!(removed_first.len(), 2);
         assert!(removed_second.is_empty());
-        assert!(!rtk_md.exists());
+        assert!(!obliterate_md.exists());
 
         let content = fs::read_to_string(&agents_md).unwrap();
         assert!(!content.contains("@OBLITERATE.md"));
@@ -4804,11 +4849,11 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let codex_dir = temp.path();
         let agents_md = codex_dir.join("AGENTS.md");
-        let rtk_md = codex_dir.join("RTK.md");
-        let absolute_ref = codex_rtk_md_ref(codex_dir);
+        let obliterate_md = codex_dir.join("Obliterate.md");
+        let absolute_ref = codex_obliterate_md_ref(codex_dir);
 
         fs::write(&agents_md, format!("# Team rules\n\n{}\n", absolute_ref)).unwrap();
-        fs::write(&rtk_md, "codex config").unwrap();
+        fs::write(&obliterate_md, "codex config").unwrap();
 
         let removed = uninstall_codex_at(codex_dir, InitContext::default()).unwrap();
 
@@ -4821,7 +4866,7 @@ mod tests {
     #[test]
     fn test_write_if_changed_dry_run_does_not_create_file() {
         let temp = TempDir::new().unwrap();
-        let target = temp.path().join("rtk-test.md");
+        let target = temp.path().join("obliterate-test.md");
 
         let changed = write_if_changed(
             &target,
@@ -4848,7 +4893,7 @@ mod tests {
     #[test]
     fn test_write_if_changed_dry_run_does_not_modify_existing_file() {
         let temp = TempDir::new().unwrap();
-        let target = temp.path().join("rtk-test.md");
+        let target = temp.path().join("obliterate-test.md");
         fs::write(&target, "original").unwrap();
 
         let changed = write_if_changed(
@@ -4874,11 +4919,11 @@ mod tests {
     fn test_run_codex_mode_dry_run_writes_nothing() {
         let temp = TempDir::new().unwrap();
         let agents_md = temp.path().join("AGENTS.md");
-        let rtk_md = temp.path().join("RTK.md");
+        let obliterate_md = temp.path().join("Obliterate.md");
 
         run_codex_mode_with_paths(
             agents_md.clone(),
-            rtk_md.clone(),
+            obliterate_md.clone(),
             true,
             InitContext {
                 dry_run: true,
@@ -4888,9 +4933,9 @@ mod tests {
         .unwrap();
 
         assert!(
-            !rtk_md.exists(),
+            !obliterate_md.exists(),
             "dry-run must not create OBLITERATE.md: {}",
-            rtk_md.display()
+            obliterate_md.display()
         );
         assert!(
             !agents_md.exists(),
@@ -4900,29 +4945,29 @@ mod tests {
     }
 
     #[test]
-    fn test_uninstall_codex_at_removes_rtk_instructions_block() {
+    fn test_uninstall_codex_at_removes_obliterate_instructions_block() {
         let temp = TempDir::new().unwrap();
         let codex_dir = temp.path();
         let agents_md = codex_dir.join("AGENTS.md");
-        let rtk_md = codex_dir.join("RTK.md");
+        let obliterate_md = codex_dir.join("Obliterate.md");
 
         fs::write(
             &agents_md,
             format!(
-                "# Team rules\n\n{} v2 -->\nOLD RTK STUFF\n{}\n\nMore content",
-                RTK_BLOCK_START, RTK_BLOCK_END
+                "# Team rules\n\n{} v2 -->\nOLD Obliterate STUFF\n{}\n\nMore content",
+                OBLITERATE_BLOCK_START, OBLITERATE_BLOCK_END
             ),
         )
         .unwrap();
-        fs::write(&rtk_md, "codex config").unwrap();
+        fs::write(&obliterate_md, "codex config").unwrap();
 
         let removed = uninstall_codex_at(codex_dir, InitContext::default()).unwrap();
 
         let content = fs::read_to_string(&agents_md).unwrap();
-        assert!(!content.contains("OLD RTK STUFF"));
+        assert!(!content.contains("OLD Obliterate STUFF"));
         assert!(content.contains("# Team rules"));
         assert!(content.contains("More content"));
-        assert!(removed.iter().any(|r| r.contains("rtk-instructions block")));
+        assert!(removed.iter().any(|r| r.contains("obliterate-instructions block")));
     }
 
     #[test]
@@ -4931,10 +4976,10 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let claude_md = temp.path().join("CLAUDE.md");
 
-        fs::write(&claude_md, RTK_INSTRUCTIONS).unwrap();
+        fs::write(&claude_md, OBLITERATE_INSTRUCTIONS).unwrap();
         let content = fs::read_to_string(&claude_md).unwrap();
 
-        assert!(content.contains(RTK_BLOCK_START));
+        assert!(content.contains(OBLITERATE_BLOCK_START));
     }
 
     // Tests for hook_already_present()
@@ -4946,13 +4991,13 @@ mod tests {
                     "matcher": "Bash",
                     "hooks": [{
                         "type": "command",
-                        "command": "/Users/test/.claude/hooks/rtk-rewrite.sh"
+                        "command": "/Users/test/.claude/hooks/obliterate-rewrite.sh"
                     }]
                 }]
             }
         });
 
-        let hook_command = "/Users/test/.claude/hooks/rtk-rewrite.sh";
+        let hook_command = "/Users/test/.claude/hooks/obliterate-rewrite.sh";
         assert!(hook_already_present(&json_content, hook_command));
     }
 
@@ -4964,21 +5009,21 @@ mod tests {
                     "matcher": "Bash",
                     "hooks": [{
                         "type": "command",
-                        "command": "/home/user/.claude/hooks/rtk-rewrite.sh"
+                        "command": "/home/user/.claude/hooks/obliterate-rewrite.sh"
                     }]
                 }]
             }
         });
 
-        let hook_command = "~/.claude/hooks/rtk-rewrite.sh";
-        // Should match on rtk-rewrite.sh substring
+        let hook_command = "~/.claude/hooks/obliterate-rewrite.sh";
+        // Should match on obliterate-rewrite.sh substring
         assert!(hook_already_present(&json_content, hook_command));
     }
 
     #[test]
     fn test_hook_not_present_empty() {
         let json_content = serde_json::json!({});
-        let hook_command = "/Users/test/.claude/hooks/rtk-rewrite.sh";
+        let hook_command = "/Users/test/.claude/hooks/obliterate-rewrite.sh";
         assert!(!hook_already_present(&json_content, hook_command));
     }
 
@@ -5013,7 +5058,7 @@ mod tests {
             }
         });
 
-        let hook_command = "/Users/test/.claude/hooks/rtk-rewrite.sh";
+        let hook_command = "/Users/test/.claude/hooks/obliterate-rewrite.sh";
         assert!(!hook_already_present(&json_content, hook_command));
     }
 
@@ -5021,7 +5066,7 @@ mod tests {
     #[test]
     fn test_insert_hook_entry_empty_root() {
         let mut json_content = serde_json::json!({});
-        let hook_command = "/Users/test/.claude/hooks/rtk-rewrite.sh";
+        let hook_command = "/Users/test/.claude/hooks/obliterate-rewrite.sh";
 
         insert_hook_entry(&mut json_content, hook_command).unwrap();
 
@@ -5054,7 +5099,7 @@ mod tests {
             }
         });
 
-        let hook_command = "/Users/test/.claude/hooks/rtk-rewrite.sh";
+        let hook_command = "/Users/test/.claude/hooks/obliterate-rewrite.sh";
         insert_hook_entry(&mut json_content, hook_command).unwrap();
 
         let pre_tool_use = json_content["hooks"]["PreToolUse"].as_array().unwrap();
@@ -5064,7 +5109,7 @@ mod tests {
         let first_command = pre_tool_use[0]["hooks"][0]["command"].as_str().unwrap();
         assert_eq!(first_command, "/some/other/hook.sh");
 
-        // Check second hook is RTK
+        // Check second hook is Obliterate
         let second_command = pre_tool_use[1]["hooks"][0]["command"].as_str().unwrap();
         assert_eq!(second_command, hook_command);
     }
@@ -5077,7 +5122,7 @@ mod tests {
             "model": "claude-sonnet-4"
         });
 
-        let hook_command = "/Users/test/.claude/hooks/rtk-rewrite.sh";
+        let hook_command = "/Users/test/.claude/hooks/obliterate-rewrite.sh";
         insert_hook_entry(&mut json_content, hook_command).unwrap();
 
         // Should preserve all other keys
@@ -5157,7 +5202,7 @@ mod tests {
                         "matcher": "Bash",
                         "hooks": [{
                             "type": "command",
-                            "command": "/Users/test/.claude/hooks/rtk-rewrite.sh"
+                            "command": "/Users/test/.claude/hooks/obliterate-rewrite.sh"
                         }]
                     }
                 ]
@@ -5236,7 +5281,7 @@ mod tests {
             "version": 1,
             "hooks": {
                 "preToolUse": [{
-                    "command": "./hooks/rtk-rewrite.sh",
+                    "command": "./hooks/obliterate-rewrite.sh",
                     "matcher": "Shell"
                 }]
             }
@@ -5323,7 +5368,7 @@ mod tests {
             "hooks": {
                 "preToolUse": [
                     { "command": "./hooks/other.sh", "matcher": "Shell" },
-                    { "command": "./hooks/rtk-rewrite.sh", "matcher": "Shell" }
+                    { "command": "./hooks/obliterate-rewrite.sh", "matcher": "Shell" }
                 ]
             }
         });
@@ -5381,7 +5426,7 @@ mod tests {
                     "matcher": "Bash",
                     "hooks": [{
                         "type": "command",
-                        "command": "/home/user/.claude/hooks/rtk-rewrite.sh"
+                        "command": "/home/user/.claude/hooks/obliterate-rewrite.sh"
                     }]
                 }]
             }
@@ -5401,7 +5446,7 @@ mod tests {
                         "matcher": "Bash",
                         "hooks": [{
                             "type": "command",
-                            "command": "/home/user/.claude/hooks/rtk-rewrite.sh"
+                            "command": "/home/user/.claude/hooks/obliterate-rewrite.sh"
                         }]
                     },
                     {
@@ -5450,7 +5495,7 @@ mod tests {
                         "matcher": "Bash",
                         "hooks": [{
                             "type": "command",
-                            "command": "/home/user/.claude/hooks/rtk-rewrite.sh"
+                            "command": "/home/user/.claude/hooks/obliterate-rewrite.sh"
                         }]
                     },
                     {
@@ -5477,7 +5522,7 @@ mod tests {
             "version": 1,
             "hooks": {
                 "preToolUse": [{
-                    "command": "./hooks/rtk-rewrite.sh",
+                    "command": "./hooks/obliterate-rewrite.sh",
                     "matcher": "Shell"
                 }]
             }
@@ -5495,7 +5540,7 @@ mod tests {
             "hooks": {
                 "preToolUse": [
                     {
-                        "command": "./hooks/rtk-rewrite.sh",
+                        "command": "./hooks/obliterate-rewrite.sh",
                         "matcher": "Shell"
                     },
                     {
@@ -5514,6 +5559,7 @@ mod tests {
 
     use std::sync::Mutex;
     static CLAUDE_DIR_LOCK: Mutex<()> = Mutex::new(());
+    static COPILOT_DIR_LOCK: Mutex<()> = Mutex::new(());
     static PI_DIR_LOCK: Mutex<()> = Mutex::new(());
     /// Serialises all tests that mutate the process-wide working directory.
     static CWD_LOCK: Mutex<()> = Mutex::new(());
@@ -5523,12 +5569,12 @@ mod tests {
         let claude_dir = tmp.path().join(CLAUDE_DIR);
         fs::create_dir_all(&claude_dir).unwrap();
 
-        let orig = std::env::var_os("RTK_CLAUDE_DIR");
-        std::env::set_var("RTK_CLAUDE_DIR", &claude_dir);
+        let orig = std::env::var_os("OBLITERATE_CLAUDE_DIR");
+        std::env::set_var("OBLITERATE_CLAUDE_DIR", &claude_dir);
         f(&claude_dir);
         match orig {
-            Some(v) => std::env::set_var("RTK_CLAUDE_DIR", v),
-            None => std::env::remove_var("RTK_CLAUDE_DIR"),
+            Some(v) => std::env::set_var("OBLITERATE_CLAUDE_DIR", v),
+            None => std::env::remove_var("OBLITERATE_CLAUDE_DIR"),
         }
     }
 
@@ -5546,13 +5592,27 @@ mod tests {
         }
     }
 
+    fn with_copilot_dir_override<F: FnOnce(&Path)>(tmp: &TempDir, f: F) {
+        let _guard = COPILOT_DIR_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let copilot_dir = tmp.path().join(".copilot");
+        fs::create_dir_all(&copilot_dir).unwrap();
+
+        let orig = std::env::var_os("OBLITERATE_COPILOT_DIR");
+        std::env::set_var("OBLITERATE_COPILOT_DIR", &copilot_dir);
+        f(&copilot_dir);
+        match orig {
+            Some(v) => std::env::set_var("OBLITERATE_COPILOT_DIR", v),
+            None => std::env::remove_var("OBLITERATE_COPILOT_DIR"),
+        }
+    }
+
     #[test]
     fn test_global_default_mode_creates_artifacts() {
         let tmp = TempDir::new().unwrap();
         with_claude_dir_override(&tmp, |claude_dir| {
             run_default_mode(true, PatchMode::Auto, false, InitContext::default()).unwrap();
 
-            assert!(claude_dir.join(RTK_MD).exists(), "RTK.md must be created");
+            assert!(claude_dir.join(OBLITERATE_MD).exists(), "Obliterate.md must be created");
             assert!(
                 claude_dir.join(CLAUDE_MD).exists(),
                 "CLAUDE.md must be created"
@@ -5575,7 +5635,7 @@ mod tests {
             run_default_mode(true, PatchMode::Auto, false, InitContext::default()).unwrap();
             uninstall(true, false, false, false, false, InitContext::default()).unwrap();
 
-            assert!(!claude_dir.join(RTK_MD).exists(), "RTK.md must be removed");
+            assert!(!claude_dir.join(OBLITERATE_MD).exists(), "Obliterate.md must be removed");
             let settings_content =
                 fs::read_to_string(claude_dir.join(SETTINGS_JSON)).unwrap_or_default();
             assert!(
@@ -5605,13 +5665,13 @@ mod tests {
             run_claude_md_mode(true, false, InitContext::default()).unwrap();
             let claude_md_content = fs::read_to_string(claude_dir.join(CLAUDE_MD)).unwrap();
             assert!(
-                claude_md_content.contains(RTK_BLOCK_START),
+                claude_md_content.contains(OBLITERATE_BLOCK_START),
                 "pre-condition: old block must exist"
             );
 
             run_default_mode(true, PatchMode::Auto, false, InitContext::default()).unwrap();
 
-            assert!(claude_dir.join(RTK_MD).exists(), "RTK.md must be created");
+            assert!(claude_dir.join(OBLITERATE_MD).exists(), "Obliterate.md must be created");
             let settings = fs::read_to_string(claude_dir.join(SETTINGS_JSON)).unwrap();
             assert!(
                 settings.contains(CLAUDE_HOOK_COMMAND),
@@ -5648,8 +5708,8 @@ mod tests {
             run_hook_only_mode(true, PatchMode::Auto, false, InitContext::default()).unwrap();
 
             assert!(
-                !claude_dir.join(RTK_MD).exists(),
-                "RTK.md must NOT be created in hook-only mode"
+                !claude_dir.join(OBLITERATE_MD).exists(),
+                "Obliterate.md must NOT be created in hook-only mode"
             );
             let settings = fs::read_to_string(claude_dir.join(SETTINGS_JSON)).unwrap();
             assert!(
@@ -5670,8 +5730,8 @@ mod tests {
             run_default_mode(true, PatchMode::Auto, false, dry).unwrap();
 
             assert!(
-                !claude_dir.join(RTK_MD).exists(),
-                "dry-run must not create RTK.md"
+                !claude_dir.join(OBLITERATE_MD).exists(),
+                "dry-run must not create Obliterate.md"
             );
             assert!(
                 !claude_dir.join(CLAUDE_MD).exists(),
@@ -5690,11 +5750,11 @@ mod tests {
         with_claude_dir_override(&tmp, |claude_dir| {
             // Stage a real install first
             run_default_mode(true, PatchMode::Auto, false, InitContext::default()).unwrap();
-            assert!(claude_dir.join(RTK_MD).exists());
+            assert!(claude_dir.join(OBLITERATE_MD).exists());
             assert!(claude_dir.join(SETTINGS_JSON).exists());
 
             let settings_before = fs::read_to_string(claude_dir.join(SETTINGS_JSON)).unwrap();
-            let rtk_md_before = fs::read_to_string(claude_dir.join(RTK_MD)).unwrap();
+            let obliterate_md_before = fs::read_to_string(claude_dir.join(OBLITERATE_MD)).unwrap();
 
             // Dry-run uninstall
             let dry = InitContext {
@@ -5705,7 +5765,7 @@ mod tests {
 
             // Files must still exist with identical content
             assert!(
-                claude_dir.join(RTK_MD).exists(),
+                claude_dir.join(OBLITERATE_MD).exists(),
                 "dry-run uninstall must not remove OBLITERATE.md"
             );
             assert!(
@@ -5713,9 +5773,9 @@ mod tests {
                 "dry-run uninstall must not remove settings.json"
             );
             assert_eq!(
-                fs::read_to_string(claude_dir.join(RTK_MD)).unwrap(),
-                rtk_md_before,
-                "dry-run uninstall must not modify RTK.md"
+                fs::read_to_string(claude_dir.join(OBLITERATE_MD)).unwrap(),
+                obliterate_md_before,
+                "dry-run uninstall must not modify Obliterate.md"
             );
             assert_eq!(
                 fs::read_to_string(claude_dir.join(SETTINGS_JSON)).unwrap(),
@@ -5726,42 +5786,42 @@ mod tests {
     }
 
     #[test]
-    fn test_uninstall_removes_rtk_instructions_block() {
+    fn test_uninstall_removes_obliterate_instructions_block() {
         let temp = TempDir::new().unwrap();
         let claude_md = temp.path().join("CLAUDE.md");
 
-        fs::write(&claude_md, RTK_INSTRUCTIONS).unwrap();
+        fs::write(&claude_md, OBLITERATE_INSTRUCTIONS).unwrap();
         assert!(claude_md.exists());
 
         let content = fs::read_to_string(&claude_md).unwrap();
-        assert!(content.contains(RTK_BLOCK_START));
+        assert!(content.contains(OBLITERATE_BLOCK_START));
 
-        let (cleaned, did_remove) = remove_rtk_block(&content);
+        let (cleaned, did_remove) = remove_obliterate_block(&content);
         assert!(did_remove);
-        assert!(!cleaned.contains(RTK_BLOCK_START));
-        assert!(!cleaned.contains("rtk cargo test"));
+        assert!(!cleaned.contains(OBLITERATE_BLOCK_START));
+        assert!(!cleaned.contains("obliterate cargo test"));
     }
 
     #[test]
-    fn test_uninstall_preserves_non_rtk_content() {
+    fn test_uninstall_preserves_non_obliterate_content() {
         let content = format!(
             "# My Project\n\nSome custom instructions.\n\n{}\n\n## Other Notes\n\nKeep this.",
-            RTK_INSTRUCTIONS
+            OBLITERATE_INSTRUCTIONS
         );
 
-        let (cleaned, did_remove) = remove_rtk_block(&content);
+        let (cleaned, did_remove) = remove_obliterate_block(&content);
 
         assert!(did_remove);
         assert!(cleaned.contains("# My Project"));
         assert!(cleaned.contains("Some custom instructions."));
         assert!(cleaned.contains("## Other Notes"));
         assert!(cleaned.contains("Keep this."));
-        assert!(!cleaned.contains(RTK_BLOCK_START));
+        assert!(!cleaned.contains(OBLITERATE_BLOCK_START));
     }
 
     #[test]
     fn test_uninstall_handles_both_artifacts() {
-        let content = format!("# Config\n\n@OBLITERATE.md\n\n{}\n\nMore stuff", RTK_INSTRUCTIONS);
+        let content = format!("# Config\n\n@OBLITERATE.md\n\n{}\n\nMore stuff", OBLITERATE_INSTRUCTIONS);
 
         let after_at_removal: String = content
             .lines()
@@ -5770,31 +5830,31 @@ mod tests {
             .join("\n");
 
         assert!(!after_at_removal.contains("@OBLITERATE.md"));
-        assert!(after_at_removal.contains(RTK_BLOCK_START));
+        assert!(after_at_removal.contains(OBLITERATE_BLOCK_START));
 
-        let (final_content, did_remove) = remove_rtk_block(&after_at_removal);
+        let (final_content, did_remove) = remove_obliterate_block(&after_at_removal);
         assert!(did_remove);
-        assert!(!final_content.contains(RTK_BLOCK_START));
+        assert!(!final_content.contains(OBLITERATE_BLOCK_START));
         assert!(final_content.contains("# Config"));
         assert!(final_content.contains("More stuff"));
     }
 
     #[test]
     fn test_uninstall_integration_claude_md_only() {
-        let (cleaned, did_remove) = remove_rtk_block(RTK_INSTRUCTIONS);
-        assert!(did_remove, "remove_rtk_block must succeed for valid block");
+        let (cleaned, did_remove) = remove_obliterate_block(OBLITERATE_INSTRUCTIONS);
+        assert!(did_remove, "remove_obliterate_block must succeed for valid block");
         assert!(
             cleaned.trim().is_empty(),
-            "CLAUDE.md with only RTK content should be empty after removal"
+            "CLAUDE.md with only Obliterate content should be empty after removal"
         );
     }
 
     #[test]
     fn test_uninstall_integration_preserves_user_content() {
         let user_content = "# My Project Rules\n\nAlways use snake_case.";
-        let installed = format!("{}\n\n{}", user_content, RTK_INSTRUCTIONS);
+        let installed = format!("{}\n\n{}", user_content, OBLITERATE_INSTRUCTIONS);
 
-        let (cleaned, did_remove) = remove_rtk_block(&installed);
+        let (cleaned, did_remove) = remove_obliterate_block(&installed);
         assert!(did_remove);
         assert!(!cleaned.trim().is_empty(), "user content should remain");
         assert!(
@@ -5806,12 +5866,12 @@ mod tests {
             "user content must be preserved"
         );
         assert!(
-            !cleaned.contains(RTK_BLOCK_START),
-            "RTK block must be fully removed"
+            !cleaned.contains(OBLITERATE_BLOCK_START),
+            "Obliterate block must be fully removed"
         );
         assert!(
-            !cleaned.contains(RTK_BLOCK_END),
-            "RTK end marker must be removed"
+            !cleaned.contains(OBLITERATE_BLOCK_END),
+            "Obliterate end marker must be removed"
         );
     }
 
@@ -5819,14 +5879,14 @@ mod tests {
     fn test_claude_md_mode_refuses_malformed_block() {
         // Mirrors `test_copilot_init_refuses_malformed_block`: a malformed
         // CLAUDE.md previously emitted a warning and exited 0, silently
-        // skipping the OpenCode plugin step. The shared `write_rtk_block`
+        // skipping the OpenCode plugin step. The shared `write_obliterate_block`
         // dispatcher now bails for both paths.
         let tmp = TempDir::new().unwrap();
         with_claude_dir_override(&tmp, |claude_dir| {
             let claude_md = claude_dir.join(CLAUDE_MD);
             let malformed = format!(
-                "# Existing notes\n\n{}\nincomplete RTK block\n",
-                RTK_BLOCK_START
+                "# Existing notes\n\n{}\nincomplete Obliterate block\n",
+                OBLITERATE_BLOCK_START
             );
             fs::write(&claude_md, &malformed).unwrap();
 
@@ -5855,8 +5915,8 @@ mod tests {
 
             let content = fs::read_to_string(&plugin).unwrap();
             assert!(
-                content.contains("rtk rewrite"),
-                "extension must delegate to rtk rewrite"
+                content.contains("obliterate rewrite"),
+                "extension must delegate to obliterate rewrite"
             );
         });
     }
@@ -6106,7 +6166,7 @@ mod tests {
             Never suggest npm; prefer pnpm.\n";
         fs::write(&instructions_path, user_content).unwrap();
 
-        run_copilot_at(temp.path(), InitContext::default()).unwrap();
+        run_copilot_at(temp.path(), false, InitContext::default()).unwrap();
 
         let final_content = fs::read_to_string(&instructions_path).unwrap();
 
@@ -6119,12 +6179,12 @@ mod tests {
             "User custom rule was destroyed. Got: {final_content}"
         );
         assert!(
-            final_content.contains(RTK_BLOCK_START),
-            "RTK block start marker missing"
+            final_content.contains(OBLITERATE_BLOCK_START),
+            "Obliterate block start marker missing"
         );
         assert!(
-            final_content.contains(RTK_BLOCK_END),
-            "RTK block end marker missing"
+            final_content.contains(OBLITERATE_BLOCK_END),
+            "Obliterate block end marker missing"
         );
     }
 
@@ -6134,10 +6194,10 @@ mod tests {
         let github_dir = temp.path().join(".github");
         fs::create_dir_all(&github_dir).unwrap();
 
-        run_copilot_at(temp.path(), InitContext::default()).unwrap();
+        run_copilot_at(temp.path(), false, InitContext::default()).unwrap();
         let after_first = fs::read_to_string(github_dir.join("copilot-instructions.md")).unwrap();
 
-        run_copilot_at(temp.path(), InitContext::default()).unwrap();
+        run_copilot_at(temp.path(), false, InitContext::default()).unwrap();
         let after_second = fs::read_to_string(github_dir.join("copilot-instructions.md")).unwrap();
 
         assert_eq!(
@@ -6145,15 +6205,15 @@ mod tests {
             "Second init must be a no-op (idempotent)"
         );
 
-        let count_start = after_first.matches(RTK_BLOCK_START).count();
-        let count_end = after_first.matches(RTK_BLOCK_END).count();
+        let count_start = after_first.matches(OBLITERATE_BLOCK_START).count();
+        let count_end = after_first.matches(OBLITERATE_BLOCK_END).count();
         assert_eq!(
             count_start, 1,
-            "RTK_BLOCK_START must appear once, got {count_start}"
+            "OBLITERATE_BLOCK_START must appear once, got {count_start}"
         );
         assert_eq!(
             count_end, 1,
-            "RTK_BLOCK_END must appear once, got {count_end}"
+            "OBLITERATE_BLOCK_END must appear once, got {count_end}"
         );
     }
 
@@ -6165,12 +6225,12 @@ mod tests {
 
         let instructions_path = github_dir.join("copilot-instructions.md");
         let stale = format!(
-            "# Project rules\n\nUse rg.\n\n{}\n# OLD RTK CONTENT\nrtk foo\n{}\n",
-            RTK_BLOCK_START, RTK_BLOCK_END
+            "# Project rules\n\nUse rg.\n\n{}\n# OLD Obliterate CONTENT\nobliterate foo\n{}\n",
+            OBLITERATE_BLOCK_START, OBLITERATE_BLOCK_END
         );
         fs::write(&instructions_path, &stale).unwrap();
 
-        run_copilot_at(temp.path(), InitContext::default()).unwrap();
+        run_copilot_at(temp.path(), false, InitContext::default()).unwrap();
 
         let updated = fs::read_to_string(&instructions_path).unwrap();
 
@@ -6179,11 +6239,11 @@ mod tests {
             "User content outside the block must be preserved"
         );
         assert!(
-            !updated.contains("# OLD RTK CONTENT"),
-            "Stale RTK block content must be removed"
+            !updated.contains("# OLD Obliterate CONTENT"),
+            "Stale Obliterate block content must be removed"
         );
         assert!(
-            updated.contains("rtk cargo test"),
+            updated.contains("obliterate cargo test"),
             "Fresh COPILOT_INSTRUCTIONS content must be present"
         );
     }
@@ -6198,7 +6258,7 @@ mod tests {
             dry_run: true,
             ..InitContext::default()
         };
-        run_copilot_at(temp.path(), ctx).unwrap();
+        run_copilot_at(temp.path(), false, ctx).unwrap();
 
         assert!(
             !instructions_path.exists(),
@@ -6212,16 +6272,96 @@ mod tests {
         let instructions_path = temp.path().join(".github").join("copilot-instructions.md");
         assert!(!instructions_path.exists());
 
-        run_copilot_at(temp.path(), InitContext::default()).unwrap();
+        run_copilot_at(temp.path(), false, InitContext::default()).unwrap();
 
         assert!(
             instructions_path.exists(),
             "Fresh install must create copilot-instructions.md"
         );
         let content = fs::read_to_string(&instructions_path).unwrap();
-        assert!(content.contains(RTK_BLOCK_START));
-        assert!(content.contains(RTK_BLOCK_END));
-        assert!(content.contains("rtk cargo test"));
+        assert!(content.contains(OBLITERATE_BLOCK_START));
+        assert!(content.contains(OBLITERATE_BLOCK_END));
+        assert!(content.contains("obliterate cargo test"));
+    }
+
+    #[test]
+    fn test_copilot_init_global_scope_writes_to_copilot_home() {
+        let temp = TempDir::new().unwrap();
+        with_copilot_dir_override(&temp, |copilot_dir| {
+            run_copilot(true, InitContext::default()).unwrap();
+
+            let instructions_path = copilot_dir.join("copilot-instructions.md");
+            let hook_path = copilot_dir.join("hooks").join("obliterate-rewrite.json");
+
+            assert!(
+                instructions_path.exists(),
+                "Global install must create ~/.copilot/copilot-instructions.md"
+            );
+            assert!(
+                hook_path.exists(),
+                "Global install must create ~/.copilot/hooks/obliterate-rewrite.json"
+            );
+        });
+    }
+
+    #[test]
+    fn test_copilot_init_global_scope_writes_to_copilot_home() {
+        let temp = TempDir::new().unwrap();
+        with_copilot_dir_override(&temp, |copilot_dir| {
+            run_copilot(true, InitContext::default()).unwrap();
+
+            let instructions_path = copilot_dir.join("copilot-instructions.md");
+            let hook_path = copilot_dir.join("hooks").join("rtk-rewrite.json");
+
+            assert!(
+                instructions_path.exists(),
+                "Global install must create ~/.copilot/copilot-instructions.md"
+            );
+            assert!(
+                hook_path.exists(),
+                "Global install must create ~/.copilot/hooks/rtk-rewrite.json"
+            );
+        });
+    }
+
+    #[test]
+    fn test_copilot_init_global_scope_writes_to_copilot_home() {
+        let temp = TempDir::new().unwrap();
+        with_copilot_dir_override(&temp, |copilot_dir| {
+            run_copilot(true, InitContext::default()).unwrap();
+
+            let instructions_path = copilot_dir.join("copilot-instructions.md");
+            let hook_path = copilot_dir.join("hooks").join("obliterate-rewrite.json");
+
+            assert!(
+                instructions_path.exists(),
+                "Global install must create ~/.copilot/copilot-instructions.md"
+            );
+            assert!(
+                hook_path.exists(),
+                "Global install must create ~/.copilot/hooks/obliterate-rewrite.json"
+            );
+        });
+    }
+
+    #[test]
+    fn test_copilot_init_global_scope_writes_to_copilot_home() {
+        let temp = TempDir::new().unwrap();
+        with_copilot_dir_override(&temp, |copilot_dir| {
+            run_copilot(true, InitContext::default()).unwrap();
+
+            let instructions_path = copilot_dir.join("copilot-instructions.md");
+            let hook_path = copilot_dir.join("hooks").join("rtk-rewrite.json");
+
+            assert!(
+                instructions_path.exists(),
+                "Global install must create ~/.copilot/copilot-instructions.md"
+            );
+            assert!(
+                hook_path.exists(),
+                "Global install must create ~/.copilot/hooks/rtk-rewrite.json"
+            );
+        });
     }
 
     #[test]
@@ -6231,10 +6371,10 @@ mod tests {
         fs::create_dir_all(&github_dir).unwrap();
 
         let instructions_path = github_dir.join("copilot-instructions.md");
-        let malformed = format!("# My rules\n\n{}\nincomplete RTK block\n", RTK_BLOCK_START);
+        let malformed = format!("# My rules\n\n{}\nincomplete Obliterate block\n", OBLITERATE_BLOCK_START);
         fs::write(&instructions_path, &malformed).unwrap();
 
-        let result = run_copilot_at(temp.path(), InitContext::default());
+        let result = run_copilot_at(temp.path(), false, InitContext::default());
 
         assert!(
             result.is_err(),
@@ -6256,12 +6396,12 @@ mod tests {
         fs::create_dir_all(&github_dir).unwrap();
 
         let instructions_path = github_dir.join("copilot-instructions.md");
-        let malformed = format!("# My rules\n\n{}\nincomplete RTK block\n", RTK_BLOCK_START);
+        let malformed = format!("# My rules\n\n{}\nincomplete Obliterate block\n", OBLITERATE_BLOCK_START);
         fs::write(&instructions_path, &malformed).unwrap();
 
-        let hook_path = github_dir.join("hooks").join("rtk-rewrite.json");
+        let hook_path = github_dir.join("hooks").join("obliterate-rewrite.json");
 
-        let result = run_copilot_at(temp.path(), InitContext::default());
+        let result = run_copilot_at(temp.path(), false, InitContext::default());
 
         assert!(result.is_err(), "Malformed file must cause a hard error");
         assert!(

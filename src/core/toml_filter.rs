@@ -2,16 +2,16 @@
 ///
 /// Provides a declarative pipeline of 8 stages that can be configured
 /// via TOML files. Lookup priority (first match wins):
-///   1. `.rtk/filters.toml`              — project-local, committable with the repo
-///   2. `~/.config/rtk/filters.toml`     — user-global, applies to all projects
+///   1. `.obliterate/filters.toml`              — project-local, committable with the repo
+///   2. `~/.config/obliterate/filters.toml`     — user-global, applies to all projects
 ///   3. Built-in TOML                     — `src/filters/*.toml`, concatenated by build.rs and embedded at compile time
 ///   4. Passthrough                       — no match, handled by caller
 ///
 /// `obliterate init` generates a commented template for both levels (project or global).
 ///
 /// Environment variables:
-///   - `RTK_NO_TOML=1`     — bypass TOML engine entirely
-///   - `RTK_TOML_DEBUG=1`  — print which filter matched and line counts to stderr
+///   - `OBLITERATE_NO_TOML=1`     — bypass TOML engine entirely
+///   - `OBLITERATE_TOML_DEBUG=1`  — print which filter matched and line counts to stderr
 ///
 /// Pipeline stages (applied in order):
 ///   1. strip_ansi           — remove ANSI escape codes
@@ -22,7 +22,7 @@
 ///   6. head/tail_lines      — keep first/last N lines
 ///   7. max_lines            — absolute line cap
 ///   8. on_empty             — message if result is empty
-use super::constants::{FILTERS_TOML, RTK_DATA_DIR};
+use super::constants::{FILTERS_TOML, OBLITERATE_DATA_DIR};
 use lazy_static::lazy_static;
 use regex::{Regex, RegexSet};
 use serde::Deserialize;
@@ -188,8 +188,8 @@ impl TomlFilterRegistry {
     fn load() -> Self {
         let mut filters = Vec::new();
 
-        // Priority 1: project-local .rtk/filters.toml (trust-gated)
-        let project_filter_path = std::path::Path::new(".rtk/filters.toml");
+        // Priority 1: project-local .obliterate/filters.toml (trust-gated)
+        let project_filter_path = std::path::Path::new(".obliterate/filters.toml");
         if project_filter_path.exists() {
             let trust_status = crate::hooks::trust::check_trust(project_filter_path)
                 .unwrap_or(crate::hooks::trust::TrustStatus::Untrusted);
@@ -200,24 +200,24 @@ impl TomlFilterRegistry {
                     if let Ok(content) = std::fs::read_to_string(project_filter_path) {
                         match Self::parse_and_compile(&content, "project") {
                             Ok(f) => filters.extend(f),
-                            Err(e) => eprintln!("[obliterate] warning: .rtk/filters.toml: {}", e),
+                            Err(e) => eprintln!("[obliterate] warning: .obliterate/filters.toml: {}", e),
                         }
                     }
                 }
                 crate::hooks::trust::TrustStatus::Untrusted => {
-                    eprintln!("[obliterate] WARNING: untrusted project filters (.rtk/filters.toml)");
+                    eprintln!("[obliterate] WARNING: untrusted project filters (.obliterate/filters.toml)");
                     eprintln!("[obliterate] Filters NOT applied. Run `obliterate trust` to review and enable.");
                 }
                 crate::hooks::trust::TrustStatus::ContentChanged { .. } => {
-                    eprintln!("[obliterate] WARNING: .rtk/filters.toml changed since trusted.");
+                    eprintln!("[obliterate] WARNING: .obliterate/filters.toml changed since trusted.");
                     eprintln!("[obliterate] Filters NOT applied. Run `obliterate trust` to re-review.");
                 }
             }
         }
 
-        // Priority 2: user-global ~/.config/rtk/filters.toml
+        // Priority 2: user-global ~/.config/obliterate/filters.toml
         if let Some(config_dir) = dirs::config_dir() {
-            let global_path = config_dir.join(RTK_DATA_DIR).join(FILTERS_TOML);
+            let global_path = config_dir.join(OBLITERATE_DATA_DIR).join(FILTERS_TOML);
             if let Ok(content) = std::fs::read_to_string(&global_path) {
                 match Self::parse_and_compile(&content, "user-global") {
                     Ok(f) => filters.extend(f),
@@ -534,7 +534,7 @@ pub fn apply_filter(filter: &CompiledFilter, stdout: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// rtk verify — inline test execution
+// obliterate verify — inline test execution
 // ---------------------------------------------------------------------------
 
 /// Run inline tests from loaded TOML files (builtin + project-local).
@@ -556,8 +556,8 @@ pub fn run_filter_tests(filter_name_opt: Option<&str>) -> VerifyResults {
         &mut tested_filter_names,
     );
 
-    // Trust-gated: only verify project-local filters if trusted (SA-2025-RTK-002)
-    let project_path = std::path::Path::new(".rtk/filters.toml");
+    // Trust-gated: only verify project-local filters if trusted (SA-2025-Obliterate-002)
+    let project_path = std::path::Path::new(".obliterate/filters.toml");
     if project_path.exists() {
         let trust_status = crate::hooks::trust::check_trust(project_path)
             .unwrap_or(crate::hooks::trust::TrustStatus::Untrusted);
@@ -666,18 +666,18 @@ fn collect_test_outcomes(
 /// Find a matching filter from the global registry. Initialises the registry
 /// lazily on first call. Returns `None` if no filter matches.
 pub fn find_matching_filter(command: &str) -> Option<&'static CompiledFilter> {
-    if std::env::var("RTK_TOML_DEBUG").is_ok() {
+    if std::env::var("OBLITERATE_TOML_DEBUG").is_ok() {
         eprintln!(
-            "[rtk:toml] looking up filter for: {:?} ({} filters loaded)",
+            "[obliterate:toml] looking up filter for: {:?} ({} filters loaded)",
             command,
             REGISTRY.filters.len()
         );
     }
     let result = find_filter_in(command, &REGISTRY.filters);
-    if std::env::var("RTK_TOML_DEBUG").is_ok() {
+    if std::env::var("OBLITERATE_TOML_DEBUG").is_ok() {
         match result {
-            Some(f) => eprintln!("[rtk:toml] matched filter: '{}'", f.name),
-            None => eprintln!("[rtk:toml] no filter matched — passthrough"),
+            Some(f) => eprintln!("[obliterate:toml] matched filter: '{}'", f.name),
+            None => eprintln!("[obliterate:toml] no filter matched — passthrough"),
         }
     }
     result

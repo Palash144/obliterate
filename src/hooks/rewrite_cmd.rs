@@ -1,4 +1,4 @@
-//! Translates a raw shell command into its RTK-optimized equivalent.
+//! Translates a raw shell command into its Obliterate-optimized equivalent.
 
 use super::permissions::{check_command, PermissionVerdict};
 use crate::discover::registry;
@@ -6,13 +6,13 @@ use std::io::Write;
 
 /// Run the `obliterate rewrite` command.
 ///
-/// Prints the RTK-rewritten command to stdout and exits with a code that tells
+/// Prints the Obliterate-rewritten command to stdout and exits with a code that tells
 /// the caller how to handle permissions:
 ///
 /// | Exit | Stdout   | Meaning                                                      |
 /// |------|----------|--------------------------------------------------------------|
 /// | 0    | rewritten| Rewrite allowed — hook may auto-allow the rewritten command. |
-/// | 1    | (none)   | No RTK equivalent — hook passes through unchanged.           |
+/// | 1    | (none)   | No Obliterate equivalent — hook passes through unchanged.           |
 /// | 2    | (none)   | Deny rule matched — hook defers to Claude Code native deny.  |
 /// | 3    | rewritten| Ask rule matched — hook rewrites but lets Claude Code prompt.|
 pub fn run(cmd: &str) -> anyhow::Result<()> {
@@ -20,7 +20,7 @@ pub fn run(cmd: &str) -> anyhow::Result<()> {
         .map(|c| (c.hooks.exclude_commands, c.hooks.transparent_prefixes))
         .unwrap_or_default();
 
-    // SECURITY: check deny/ask BEFORE rewrite so non-RTK commands are also covered.
+    // SECURITY: check deny/ask BEFORE rewrite so non-Obliterate commands are also covered.
     let verdict = check_command(cmd);
 
     if verdict == PermissionVerdict::Deny {
@@ -42,7 +42,7 @@ pub fn run(cmd: &str) -> anyhow::Result<()> {
             PermissionVerdict::Deny => unreachable!(),
         },
         None => {
-            // No RTK equivalent. Exit 1 = passthrough.
+            // No Obliterate equivalent. Exit 1 = passthrough.
             // Claude Code independently evaluates its own ask rules on the original cmd.
             std::process::exit(1);
         }
@@ -68,25 +68,25 @@ mod tests {
     }
 
     #[test]
-    fn test_run_already_rtk_returns_some() {
+    fn test_run_already_obliterate_returns_some() {
         assert_eq!(
-            rewrite_command_no_prefixes("rtk git status"),
-            Some("rtk git status".into())
+            rewrite_command_no_prefixes("obliterate git status"),
+            Some("obliterate git status".into())
         );
     }
 
     /// SECURITY: Verify the exit code protocol for permission verdicts.
     ///
-    /// The bash hook (.claude/hooks/rtk-rewrite.sh) interprets exit codes as:
+    /// The bash hook (.claude/hooks/obliterate-rewrite.sh) interprets exit codes as:
     ///   0 → auto-allow (sets permissionDecision: "allow")
-    ///   1 → passthrough (no RTK equivalent)
+    ///   1 → passthrough (no Obliterate equivalent)
     ///   2 → deny (let Claude Code handle natively)
     ///   3 → ask (rewrite but omit permissionDecision, forcing user prompt)
     ///
     /// CRITICAL: PermissionVerdict::Default MUST map to exit 3 (ask), NOT exit 0.
     /// If Default were mapped to exit 0, any command without an explicit permission
     /// rule would be auto-allowed — bypassing Claude Code's least-privilege default.
-    /// See: https://github.com/rtk-ai/rtk/issues/1155
+    /// See: https://github.com/obliterate-ai/obliterate/issues/1155
     mod exit_code_protocol {
         use super::registry;
         use crate::hooks::permissions::{check_command_with_rules, PermissionVerdict};
@@ -145,7 +145,7 @@ mod tests {
         fn test_no_auto_allow_bypass_for_unrecognized_commands() {
             // SECURITY: A command with no permission rules and no matching allow rule
             // must NOT be auto-allowed. This is the core of issue #1155.
-            // Even though `git status` can be rewritten to `rtk git status`,
+            // Even though `git status` can be rewritten to `obliterate git status`,
             // the absence of an allow rule means Default → exit 3 → ask.
             let verdict = check_command_with_rules("git status", &[], &[], &[]);
             assert_eq!(verdict, PermissionVerdict::Default);

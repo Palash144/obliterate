@@ -42,7 +42,7 @@ pub fn run(
     // Safety: if filter emptied a non-empty file, fall back to raw content
     if filtered.trim().is_empty() && !content.trim().is_empty() {
         eprintln!(
-            "rtk: warning: filter produced empty output for {} ({} bytes), showing raw content",
+            "obliterate: warning: filter produced empty output for {} ({} bytes), showing raw content",
             file.display(),
             content.len()
         );
@@ -65,17 +65,17 @@ pub fn run(
 
     filtered = apply_line_window(&filtered, max_lines, tail_lines, &lang);
 
-    let rtk_output = if line_numbers {
+    let obliterate_output = if line_numbers {
         format_with_line_numbers(&filtered)
     } else {
         filtered.clone()
     };
-    print!("{}", rtk_output);
+    print!("{}", obliterate_output);
     timer.track(
         &format!("cat {}", file.display()),
-        "rtk read",
+        "obliterate read",
         &content,
-        &rtk_output,
+        &obliterate_output,
     );
     Ok(())
 }
@@ -129,14 +129,14 @@ pub fn run_stdin(
 
     filtered = apply_line_window(&filtered, max_lines, tail_lines, &lang);
 
-    let rtk_output = if line_numbers {
+    let obliterate_output = if line_numbers {
         format_with_line_numbers(&filtered)
     } else {
         filtered.clone()
     };
-    print!("{}", rtk_output);
+    print!("{}", obliterate_output);
 
-    timer.track("cat - (stdin)", "rtk read -", &content, &rtk_output);
+    timer.track("cat - (stdin)", "obliterate read -", &content, &obliterate_output);
     Ok(())
 }
 
@@ -227,17 +227,17 @@ fn main() {{
         assert!(output.contains("more lines"));
     }
 
-    fn rtk_bin() -> std::path::PathBuf {
+    fn obliterate_bin() -> std::path::PathBuf {
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("target")
             .join("debug")
-            .join("rtk")
+            .join("obliterate")
     }
 
     #[test]
     #[ignore]
     fn test_read_two_valid_files_concatenated() {
-        let bin = rtk_bin();
+        let bin = obliterate_bin();
         assert!(bin.exists(), "Run `cargo build` first");
 
         let mut f1 = NamedTempFile::with_suffix(".txt").unwrap();
@@ -248,7 +248,7 @@ fn main() {{
         let output = std::process::Command::new(&bin)
             .args(["read", &f1.path().to_string_lossy(), &f2.path().to_string_lossy()])
             .output()
-            .expect("failed to run rtk read");
+            .expect("failed to run obliterate read");
 
         assert!(output.status.success());
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -259,35 +259,35 @@ fn main() {{
     #[test]
     #[ignore]
     fn test_read_valid_and_nonexistent() {
-        let bin = rtk_bin();
+        let bin = obliterate_bin();
         assert!(bin.exists(), "Run `cargo build` first");
 
         let mut f1 = NamedTempFile::with_suffix(".txt").unwrap();
         writeln!(f1, "valid content").unwrap();
 
         let output = std::process::Command::new(&bin)
-            .args(["read", &f1.path().to_string_lossy(), "/tmp/rtk_nonexistent_file.txt"])
+            .args(["read", &f1.path().to_string_lossy(), "/tmp/obliterate_nonexistent_file.txt"])
             .output()
-            .expect("failed to run rtk read");
+            .expect("failed to run obliterate read");
 
         assert!(!output.status.success(), "should exit non-zero on missing file");
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(stdout.contains("valid content"), "valid file should still be printed");
-        assert!(stderr.contains("rtk_nonexistent_file"), "should report missing file on stderr");
+        assert!(stderr.contains("obliterate_nonexistent_file"), "should report missing file on stderr");
     }
 
     #[test]
     #[ignore]
     fn test_read_stdin_dedup_warning() {
-        let bin = rtk_bin();
+        let bin = obliterate_bin();
         assert!(bin.exists(), "Run `cargo build` first");
 
         let output = std::process::Command::new(&bin)
             .args(["read", "-", "-"])
             .stdin(std::process::Stdio::piped())
             .output()
-            .expect("failed to run rtk read");
+            .expect("failed to run obliterate read");
 
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(

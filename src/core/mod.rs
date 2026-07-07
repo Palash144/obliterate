@@ -1,4 +1,4 @@
-//! Building blocks shared across all RTK modules.
+//! Building blocks shared across all Obliterate modules.
 
 pub mod config;
 pub mod constants;

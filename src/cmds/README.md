@@ -30,6 +30,7 @@ Each subdirectory has its own README with file descriptions, parsing strategies,
 - **[`js/`](js/README.md)** — npm, pnpm, vitest, lint, tsc, next, prettier, playwright, prisma — Package manager auto-detection, lint routing, cross-deps with python
 - **[`python/`](python/README.md)** — ruff, pytest, mypy, pip — JSON check vs text format, state machine parsing, uv auto-detection
 - **[`go/`](go/README.md)** — go test/build/vet, golangci-lint — NDJSON streaming, Go sub-enum pattern
+- **[`jvm/`](jvm/README.md)** — gradlew, mvn — task-family routing for build/test/lint/deps and safe passthrough on unknown goals
 - **[`dotnet/`](dotnet/README.md)** — dotnet, binlog, trx, format_report — DotnetCommands sub-enum, internal helper modules
 - **[`cloud/`](cloud/README.md)** — aws, docker/kubectl, curl, wget, psql — Docker/Kubectl sub-enums, JSON forced output
 - **[`system/`](system/README.md)** — ls, tree, read, grep, find, wc, env, json, log, deps, summary, format, smart — format_cmd routing, filter levels, language detection
@@ -230,7 +231,7 @@ All module `run()` functions return `Result<i32>` where the `i32` is the underly
 |--------------|---------|-----------|
 | `Ok(0)` | Command succeeded | `main.rs` exits 0 |
 | `Ok(N)` | Command failed with code N | `main.rs` exits N |
-| `Err(e)` | RTK itself failed (not the command) | `main.rs` prints error, exits 1 |
+| `Err(e)` | OBLITERATE itself failed (not the command) | `main.rs` prints error, exits 1 |
 
 **How exit codes are extracted:**
 

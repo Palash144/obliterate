@@ -15,7 +15,7 @@ use cmds::js::{
     lint_cmd, next_cmd, npm_cmd, playwright_cmd, pnpm_cmd, prettier_cmd, prisma_cmd, tsc_cmd,
     vitest_cmd,
 };
-use cmds::jvm::gradlew_cmd;
+use cmds::jvm::{gradlew_cmd, mvn_cmd};
 use cmds::python::{mypy_cmd, pip_cmd, pytest_cmd, ruff_cmd};
 use cmds::ruby::{rake_cmd, rspec_cmd, rubocop_cmd};
 use cmds::rust::{cargo_cmd, runner};
@@ -256,7 +256,7 @@ enum Commands {
 
     /// Find files with compact tree output (accepts native find flags like -name, -type)
     Find {
-        /// All find arguments (supports both RTK and native find syntax)
+        /// All find arguments (supports both Obliterate and native find syntax)
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
@@ -441,6 +441,19 @@ enum Commands {
         /// Skip confirmation prompt when resetting
         #[arg(long, requires = "reset")]
         yes: bool,
+    },
+
+    /// Show parser quality metrics (full/degraded/passthrough tiers)
+    ParseHealth {
+        /// Filter statistics to current project (current working directory)
+        #[arg(short, long)]
+        project: bool,
+        /// Max commands to show in hotspot table
+        #[arg(short, long, default_value = "10")]
+        limit: usize,
+        /// Output format: text, json
+        #[arg(short, long, default_value = "text")]
+        format: String,
     },
 
     /// Claude Code economics: spending (ccusage) vs savings (obliterate) analysis
@@ -736,6 +749,14 @@ enum Commands {
         args: Vec<String>,
     },
 
+    /// Maven commands with compact output (build, test, lint, dependency tree)
+    #[command(name = "mvn")]
+    Mvn {
+        /// Maven goals and arguments (e.g., test, verify, dependency:tree, checkstyle:check)
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+
     /// Show hook rewrite audit metrics (requires audit env var enabled)
     #[command(name = "hook-audit")]
     HookAudit {
@@ -747,10 +768,10 @@ enum Commands {
     /// Rewrite a raw command to its Obliterate equivalent (single source of truth for hooks)
     ///
     /// Exits 0 and prints the rewritten command if supported.
-    /// Exits 1 with no output if the command has no RTK equivalent.
+    /// Exits 1 with no output if the command has no Obliterate equivalent.
     ///
     /// Used by Claude Code, Gemini CLI, and other LLM hooks:
-    ///   REWRITTEN=$(rtk rewrite "$CMD") || exit 0
+    ///   REWRITTEN=$(obliterate rewrite "$CMD") || exit 0
     Rewrite {
         /// Raw command to rewrite (e.g. "git status", "cargo test && git push")
         /// Accepts multiple args: `obliterate rewrite ls -al` is equivalent to `obliterate rewrite "ls -al"`
@@ -1123,9 +1144,9 @@ enum GoCommands {
     Other(Vec<OsString>),
 }
 
-/// RTK-only subcommands that should never fall back to raw execution.
+/// Obliterate-only subcommands that should never fall back to raw execution.
 /// If Clap fails to parse these, show the Clap error directly.
-const RTK_META_COMMANDS: &[&str] = &[
+const OBLITERATE_META_COMMANDS: &[&str] = &[
     "gain",
     "discover",
     "learn",
@@ -1147,14 +1168,14 @@ const RTK_META_COMMANDS: &[&str] = &[
 fn run_fallback(parse_error: clap::Error) -> Result<i32> {
     let args: Vec<String> = std::env::args().skip(1).collect();
 
-    // No args → show Clap's error (user ran just "rtk" with bad syntax)
+    // No args → show Clap's error (user ran just "obliterate" with bad syntax)
     if args.is_empty() {
         parse_error.exit();
     }
 
-    // RTK meta-commands should never fall back to raw execution.
+    // Obliterate meta-commands should never fall back to raw execution.
     // e.g. `obliterate gain --badtypo` should show Clap's error, not try to run `gain` from $PATH.
-    if RTK_META_COMMANDS.contains(&args[0].as_str()) {
+    if OBLITERATE_META_COMMANDS.contains(&args[0].as_str()) {
         parse_error.exit();
     }
 
@@ -1164,7 +1185,7 @@ fn run_fallback(parse_error: clap::Error) -> Result<i32> {
     // Start timer before execution to capture actual command runtime
     let timer = core::tracking::TimedExecution::start();
 
-    // TOML filter lookup — bypass with RTK_NO_TOML=1
+    // TOML filter lookup — bypass with OBLITERATE_NO_TOML=1
     // Use basename of args[0] so absolute paths (/usr/bin/make) still match "^make\b".
     let lookup_cmd = {
         let base = std::path::Path::new(&args[0])
@@ -1176,7 +1197,7 @@ fn run_fallback(parse_error: clap::Error) -> Result<i32> {
             .collect::<Vec<_>>()
             .join(" ")
     };
-    let toml_match = if std::env::var("RTK_NO_TOML").ok().as_deref() == Some("1") {
+    let toml_match = if std::env::var("OBLITERATE_NO_TOML").ok().as_deref() == Some("1") {
         None
     } else {
         core::toml_filter::find_matching_filter(&lookup_cmd)
@@ -1229,7 +1250,7 @@ fn run_fallback(parse_error: clap::Error) -> Result<i32> {
 
                 timer.track(
                     &raw_command,
-                    &format!("rtk:toml {}", raw_command),
+                    &format!("obliterate:toml {}", raw_command),
                     &combined_raw,
                     &filtered,
                 );
@@ -1240,7 +1261,7 @@ fn run_fallback(parse_error: clap::Error) -> Result<i32> {
             Err(e) => {
                 // Command not found — same behaviour as no-TOML path
                 core::tracking::record_parse_failure_silent(&raw_command, &error_message, false);
-                eprintln!("[rtk: {}]", e);
+                eprintln!("[obliterate: {}]", e);
                 Ok(127)
             }
         }
@@ -1255,7 +1276,7 @@ fn run_fallback(parse_error: clap::Error) -> Result<i32> {
 
         match status {
             Ok(s) => {
-                timer.track_passthrough(&raw_command, &format!("rtk fallback: {}", raw_command));
+                timer.track_passthrough(&raw_command, &format!("obliterate fallback: {}", raw_command));
 
                 core::tracking::record_parse_failure_silent(&raw_command, &error_message, true);
 
@@ -1264,7 +1285,7 @@ fn run_fallback(parse_error: clap::Error) -> Result<i32> {
             Err(e) => {
                 core::tracking::record_parse_failure_silent(&raw_command, &error_message, false);
                 // Command not found or other OS error — single message, no duplicate Clap error
-                eprintln!("[rtk: {}]", e);
+                eprintln!("[obliterate: {}]", e);
                 Ok(127)
             }
         }
@@ -1337,7 +1358,7 @@ fn validate_pnpm_filters(filters: &[String], command: &PnpmCommands) -> Option<S
     // Check if this is a Build or Typecheck command with filters
     match command {
         PnpmCommands::Typecheck { .. } => {
-            // FIXME: if filters are present, we should find out which workspaces are selected before running rtk dedicated commands
+            // FIXME: if filters are present, we should find out which workspaces are selected before running obliterate dedicated commands
             if !filters.is_empty() {
                 let cmd_name = match command {
                     PnpmCommands::Typecheck { .. } => "tsc",
@@ -1359,7 +1380,7 @@ fn main() {
     let code = match run_cli() {
         Ok(code) => code,
         Err(e) => {
-            eprintln!("rtk: {:#}", e);
+            eprintln!("obliterate: {:#}", e);
             1
         }
     };
@@ -1404,7 +1425,7 @@ fn run_cli() -> Result<i32> {
 
     // Warn if installed hook is outdated/missing (1/day, non-blocking).
     // Skip for Gain — it shows its own inline hook warning.
-    if !matches!(cli.command, Commands::Gain { .. }) {
+    if !matches!(cli.command, Commands::Gain { .. } | Commands::ParseHealth { .. }) {
         hooks::hook_check::maybe_warn();
     }
 
@@ -1420,7 +1441,7 @@ fn run_cli() -> Result<i32> {
 
         Commands::Tree { args } => tree::run(&args, cli.verbose)?,
 
-        // ISSUE #989: support multiple files (cat file1 file2 → rtk read file1 file2)
+        // ISSUE #989: support multiple files (cat file1 file2 → obliterate read file1 file2)
         Commands::Read {
             files,
             level,
@@ -1433,7 +1454,7 @@ fn run_cli() -> Result<i32> {
             for file in &files {
                 let result = if file == Path::new("-") {
                     if stdin_seen {
-                        eprintln!("rtk: warning: stdin specified more than once");
+                        eprintln!("obliterate: warning: stdin specified more than once");
                         continue;
                     }
                     stdin_seen = true;
@@ -1841,18 +1862,18 @@ fn run_cli() -> Result<i32> {
                 };
                 hooks::init::run_gemini(global, hook_only, patch_mode, ctx)?;
             } else if copilot {
-                hooks::init::run_copilot(ctx)?;
+                hooks::init::run_copilot(global, ctx)?;
             } else if agent == Some(AgentTarget::Pi) {
                 hooks::init::run_pi_mode(global, ctx)?
             } else if agent == Some(AgentTarget::Kilocode) {
                 if global {
-                    anyhow::bail!("Kilo Code is project-scoped. Use: rtk init --agent kilocode");
+                    anyhow::bail!("Kilo Code is project-scoped. Use: obliterate init --agent kilocode");
                 }
                 hooks::init::run_kilocode_mode(ctx)?;
             } else if agent == Some(AgentTarget::Antigravity) {
                 if global {
                     anyhow::bail!(
-                        "Antigravity is project-scoped. Use: rtk init --agent antigravity"
+                        "Antigravity is project-scoped. Use: obliterate init --agent antigravity"
                     );
                 }
                 hooks::init::run_antigravity_mode(ctx)?;
@@ -1937,6 +1958,15 @@ fn run_cli() -> Result<i32> {
                 yes,
                 cli.verbose,
             )?;
+            0
+        }
+
+        Commands::ParseHealth {
+            project,
+            limit,
+            format,
+        } => {
+            analytics::parse_health::run(project, limit, &format)?;
             0
         }
 
@@ -2112,7 +2142,7 @@ fn run_cli() -> Result<i32> {
                                 let args_str = args.join(" ");
                                 timer.track_passthrough(
                                     &format!("npx {}", args_str),
-                                    &format!("rtk npx {} (passthrough)", args_str),
+                                    &format!("obliterate npx {} (passthrough)", args_str),
                                 );
                                 core::utils::exit_code_from_status(&status, "npx prisma")
                             }
@@ -2123,7 +2153,7 @@ fn run_cli() -> Result<i32> {
                             .arg("prisma")
                             .status()
                             .context("Failed to run npx prisma")?;
-                        timer.track_passthrough("npx prisma", "rtk npx prisma (passthrough)");
+                        timer.track_passthrough("npx prisma", "obliterate npx prisma (passthrough)");
                         core::utils::exit_code_from_status(&status, "npx prisma")
                     }
                 }
@@ -2168,6 +2198,8 @@ fn run_cli() -> Result<i32> {
         Commands::GolangciLint { args } => golangci_cmd::run(&args, cli.verbose)?,
 
         Commands::Gradlew { args } => gradlew_cmd::run(&args, cli.verbose)?,
+
+        Commands::Mvn { args } => mvn_cmd::run(&args, cli.verbose)?,
 
         Commands::HookAudit { since } => {
             hooks::hook_audit_cmd::run(since, cli.verbose)?;
@@ -2253,15 +2285,15 @@ fn run_cli() -> Result<i32> {
 
             if args.is_empty() {
                 anyhow::bail!(
-                    "proxy requires a command to execute\nUsage: rtk proxy <command> [args...]"
+                    "proxy requires a command to execute\nUsage: obliterate proxy <command> [args...]"
                 );
             }
 
             let timer = core::tracking::TimedExecution::start();
 
             // If a single quoted arg contains spaces, split it respecting quotes (#388).
-            // e.g. rtk proxy 'head -50 file.php' → cmd=head, args=["-50", "file.php"]
-            // e.g. rtk proxy 'git log --format="%H %s"' → cmd=git, args=["log", "--format=%H %s"]
+            // e.g. obliterate proxy 'head -50 file.php' → cmd=head, args=["-50", "file.php"]
+            // e.g. obliterate proxy 'git log --format="%H %s"' → cmd=git, args=["log", "--format=%H %s"]
             let (cmd_name, cmd_args): (String, Vec<String>) = if args.len() == 1 {
                 let full = args[0].to_string_lossy();
                 let parts = shell_split(&full);
@@ -2417,7 +2449,7 @@ fn run_cli() -> Result<i32> {
             // Track usage (input = output since no filtering)
             timer.track(
                 &format!("{} {}", cmd_name, cmd_args.join(" ")),
-                &format!("rtk proxy {} {}", cmd_name, cmd_args.join(" ")),
+                &format!("obliterate proxy {} {}", cmd_name, cmd_args.join(" ")),
                 &full_output,
                 &full_output,
             );
@@ -2509,6 +2541,7 @@ fn is_operational_command(cmd: &Commands) -> bool {
             | Commands::Go { .. }
             | Commands::GolangciLint { .. }
             | Commands::Gt { .. }
+            | Commands::Mvn { .. }
     )
 }
 
@@ -2520,7 +2553,7 @@ mod tests {
 
     #[test]
     fn test_git_commit_single_message() {
-        let cli = Cli::try_parse_from(["rtk", "git", "commit", "-m", "fix: typo"]).unwrap();
+        let cli = Cli::try_parse_from(["obliterate", "git", "commit", "-m", "fix: typo"]).unwrap();
         match cli.command {
             Commands::Git {
                 command: GitCommands::Commit { args },
@@ -2533,9 +2566,20 @@ mod tests {
     }
 
     #[test]
+    fn test_mvn_command_parsing() {
+        let cli = Cli::try_parse_from(["obliterate", "mvn", "dependency:tree", "-Dverbose"]).unwrap();
+        match cli.command {
+            Commands::Mvn { args } => {
+                assert_eq!(args, vec!["dependency:tree", "-Dverbose"]);
+            }
+            _ => panic!("Expected Mvn command"),
+        }
+    }
+
+    #[test]
     fn test_git_commit_multiple_messages() {
         let cli = Cli::try_parse_from([
-            "rtk",
+            "obliterate",
             "git",
             "commit",
             "-m",
@@ -2561,7 +2605,7 @@ mod tests {
     // #327: git commit -am "msg" was rejected by Clap
     #[test]
     fn test_git_commit_am_flag() {
-        let cli = Cli::try_parse_from(["rtk", "git", "commit", "-am", "quick fix"]).unwrap();
+        let cli = Cli::try_parse_from(["obliterate", "git", "commit", "-am", "quick fix"]).unwrap();
         match cli.command {
             Commands::Git {
                 command: GitCommands::Commit { args },
@@ -2576,7 +2620,7 @@ mod tests {
     #[test]
     fn test_git_commit_amend() {
         let cli =
-            Cli::try_parse_from(["rtk", "git", "commit", "--amend", "-m", "new msg"]).unwrap();
+            Cli::try_parse_from(["obliterate", "git", "commit", "--amend", "-m", "new msg"]).unwrap();
         match cli.command {
             Commands::Git {
                 command: GitCommands::Commit { args },
@@ -2591,7 +2635,7 @@ mod tests {
     #[test]
     fn test_git_global_options_parsing() {
         let cli =
-            Cli::try_parse_from(["rtk", "git", "--no-pager", "--no-optional-locks", "status"])
+            Cli::try_parse_from(["obliterate", "git", "--no-pager", "--no-optional-locks", "status"])
                 .unwrap();
         match cli.command {
             Commands::Git {
@@ -2613,7 +2657,7 @@ mod tests {
     #[test]
     fn test_git_commit_long_flag_multiple() {
         let cli = Cli::try_parse_from([
-            "rtk",
+            "obliterate",
             "git",
             "commit",
             "--message",
@@ -2647,13 +2691,13 @@ mod tests {
 
     #[test]
     fn test_try_parse_valid_git_status() {
-        let result = Cli::try_parse_from(["rtk", "git", "status"]);
+        let result = Cli::try_parse_from(["obliterate", "git", "status"]);
         assert!(result.is_ok(), "git status should parse successfully");
     }
 
     #[test]
     fn test_try_parse_init_agent_hermes() {
-        let cli = Cli::try_parse_from(["rtk", "init", "--agent", "hermes"]).unwrap();
+        let cli = Cli::try_parse_from(["obliterate", "init", "--agent", "hermes"]).unwrap();
         match cli.command {
             Commands::Init { agent, .. } => {
                 assert_eq!(agent, Some(AgentTarget::Hermes));
@@ -2664,7 +2708,7 @@ mod tests {
 
     #[test]
     fn test_try_parse_kubectl_get_alias() {
-        let cli = Cli::try_parse_from(["rtk", "kubectl", "get", "pods", "-n", "default"]).unwrap();
+        let cli = Cli::try_parse_from(["obliterate", "kubectl", "get", "pods", "-n", "default"]).unwrap();
 
         match cli.command {
             Commands::Kubectl {
@@ -2676,7 +2720,7 @@ mod tests {
 
     #[test]
     fn test_try_parse_init_agent_hermes_uninstall() {
-        let cli = Cli::try_parse_from(["rtk", "init", "--agent", "hermes", "--uninstall"]).unwrap();
+        let cli = Cli::try_parse_from(["obliterate", "init", "--agent", "hermes", "--uninstall"]).unwrap();
         match cli.command {
             Commands::Init {
                 agent, uninstall, ..
@@ -2722,7 +2766,7 @@ mod tests {
 
     #[test]
     fn test_try_parse_help_is_display_help() {
-        match Cli::try_parse_from(["rtk", "--help"]) {
+        match Cli::try_parse_from(["obliterate", "--help"]) {
             Err(e) => assert_eq!(e.kind(), ErrorKind::DisplayHelp),
             Ok(_) => panic!("Expected DisplayHelp error"),
         }
@@ -2730,7 +2774,7 @@ mod tests {
 
     #[test]
     fn test_try_parse_version_is_display_version() {
-        match Cli::try_parse_from(["rtk", "--version"]) {
+        match Cli::try_parse_from(["obliterate", "--version"]) {
             Err(e) => assert_eq!(e.kind(), ErrorKind::DisplayVersion),
             Ok(_) => panic!("Expected DisplayVersion error"),
         }
@@ -2738,7 +2782,7 @@ mod tests {
 
     #[test]
     fn test_try_parse_unknown_subcommand_is_error() {
-        match Cli::try_parse_from(["rtk", "nonexistent-command"]) {
+        match Cli::try_parse_from(["obliterate", "nonexistent-command"]) {
             Err(e) => assert!(!matches!(
                 e.kind(),
                 ErrorKind::DisplayHelp | ErrorKind::DisplayVersion
@@ -2749,7 +2793,7 @@ mod tests {
 
     #[test]
     fn test_try_parse_git_with_dash_c_succeeds() {
-        let result = Cli::try_parse_from(["rtk", "git", "-C", "/path", "status"]);
+        let result = Cli::try_parse_from(["obliterate", "git", "-C", "/path", "status"]);
         assert!(
             result.is_ok(),
             "git -C /path status should parse successfully"
@@ -2766,7 +2810,7 @@ mod tests {
 
     #[test]
     fn test_gain_failures_flag_parses() {
-        let result = Cli::try_parse_from(["rtk", "gain", "--failures"]);
+        let result = Cli::try_parse_from(["obliterate", "gain", "--failures"]);
         assert!(result.is_ok());
         if let Ok(cli) = result {
             match cli.command {
@@ -2778,7 +2822,7 @@ mod tests {
 
     #[test]
     fn test_gain_failures_short_flag_parses() {
-        let result = Cli::try_parse_from(["rtk", "gain", "-F"]);
+        let result = Cli::try_parse_from(["obliterate", "gain", "-F"]);
         assert!(result.is_ok());
         if let Ok(cli) = result {
             match cli.command {
@@ -2790,13 +2834,13 @@ mod tests {
 
     #[test]
     fn test_meta_commands_reject_bad_flags() {
-        // RTK meta-commands should produce parse errors (not fall through to raw execution).
+        // Obliterate meta-commands should produce parse errors (not fall through to raw execution).
         // Skip "proxy" because it uses trailing_var_arg (accepts any args by design).
-        for cmd in RTK_META_COMMANDS {
+        for cmd in OBLITERATE_META_COMMANDS {
             if matches!(*cmd, "proxy" | "run" | "rewrite" | "session") {
                 continue; // these use trailing_var_arg (accept any args by design)
             }
-            let result = Cli::try_parse_from(["rtk", cmd, "--nonexistent-flag-xyz"]);
+            let result = Cli::try_parse_from(["obliterate", cmd, "--nonexistent-flag-xyz"]);
             assert!(
                 result.is_err(),
                 "Meta-command '{}' with bad flag should fail to parse",
@@ -2807,7 +2851,7 @@ mod tests {
 
     #[test]
     fn test_run_command_with_dash_c() {
-        let cli = Cli::try_parse_from(["rtk", "run", "-c", "git status && echo done"]).unwrap();
+        let cli = Cli::try_parse_from(["obliterate", "run", "-c", "git status && echo done"]).unwrap();
         match cli.command {
             Commands::Run { command, args } => {
                 assert_eq!(command, Some("git status && echo done".to_string()));
@@ -2819,7 +2863,7 @@ mod tests {
 
     #[test]
     fn test_run_command_positional_args() {
-        let cli = Cli::try_parse_from(["rtk", "run", "echo", "hello"]).unwrap();
+        let cli = Cli::try_parse_from(["obliterate", "run", "echo", "hello"]).unwrap();
         match cli.command {
             Commands::Run { command, args } => {
                 assert!(command.is_none());
@@ -2831,7 +2875,7 @@ mod tests {
 
     #[test]
     fn test_hook_claude_parses() {
-        let cli = Cli::try_parse_from(["rtk", "hook", "claude"]).unwrap();
+        let cli = Cli::try_parse_from(["obliterate", "hook", "claude"]).unwrap();
         assert!(matches!(
             cli.command,
             Commands::Hook {
@@ -2842,7 +2886,7 @@ mod tests {
 
     #[test]
     fn test_hook_check_parses() {
-        let cli = Cli::try_parse_from(["rtk", "hook", "check", "git", "status"]).unwrap();
+        let cli = Cli::try_parse_from(["obliterate", "hook", "check", "git", "status"]).unwrap();
         match cli.command {
             Commands::Hook {
                 command: HookCommands::Check { agent, command },
@@ -2857,7 +2901,7 @@ mod tests {
     #[test]
     fn test_hook_check_with_agent() {
         let cli =
-            Cli::try_parse_from(["rtk", "hook", "check", "--agent", "gemini", "cargo", "test"])
+            Cli::try_parse_from(["obliterate", "hook", "check", "--agent", "gemini", "cargo", "test"])
                 .unwrap();
         match cli.command {
             Commands::Hook {
@@ -2873,7 +2917,7 @@ mod tests {
     #[test]
     fn test_hook_check_preserves_double_dash_in_command() {
         let cli = Cli::try_parse_from([
-            "rtk",
+            "obliterate",
             "hook",
             "check",
             "shadowenv",
@@ -2898,15 +2942,15 @@ mod tests {
     fn test_meta_command_list_is_complete() {
         // Verify all meta-commands are in the guard list by checking they parse with valid syntax
         let meta_cmds_that_parse = [
-            vec!["rtk", "gain"],
-            vec!["rtk", "discover"],
-            vec!["rtk", "learn"],
-            vec!["rtk", "init"],
-            vec!["rtk", "config"],
-            vec!["rtk", "proxy", "echo", "hi"],
-            vec!["rtk", "run", "-c", "echo hi"],
-            vec!["rtk", "hook-audit"],
-            vec!["rtk", "cc-economics"],
+            vec!["obliterate", "gain"],
+            vec!["obliterate", "discover"],
+            vec!["obliterate", "learn"],
+            vec!["obliterate", "init"],
+            vec!["obliterate", "config"],
+            vec!["obliterate", "proxy", "echo", "hi"],
+            vec!["obliterate", "run", "-c", "echo hi"],
+            vec!["obliterate", "hook-audit"],
+            vec!["obliterate", "cc-economics"],
         ];
         for args in &meta_cmds_that_parse {
             let result = Cli::try_parse_from(args.iter());
@@ -2959,18 +3003,18 @@ mod tests {
         // Clap rejected `-al` as an unknown flag. With trailing_var_arg + allow_hyphen_values,
         // multiple args are accepted and joined into a single command string.
         let cases = vec![
-            vec!["rtk", "rewrite", "ls", "-al"],
-            vec!["rtk", "rewrite", "git", "status"],
-            vec!["rtk", "rewrite", "npm", "exec"],
-            vec!["rtk", "rewrite", "cargo", "test"],
-            vec!["rtk", "rewrite", "du", "-sh", "."],
-            vec!["rtk", "rewrite", "head", "-50", "file.txt"],
+            vec!["obliterate", "rewrite", "ls", "-al"],
+            vec!["obliterate", "rewrite", "git", "status"],
+            vec!["obliterate", "rewrite", "npm", "exec"],
+            vec!["obliterate", "rewrite", "cargo", "test"],
+            vec!["obliterate", "rewrite", "du", "-sh", "."],
+            vec!["obliterate", "rewrite", "head", "-50", "file.txt"],
         ];
         for args in &cases {
             let result = Cli::try_parse_from(args.iter());
             assert!(
                 result.is_ok(),
-                "rtk rewrite {:?} should parse (was failing before trailing_var_arg fix)",
+                "obliterate rewrite {:?} should parse (was failing before trailing_var_arg fix)",
                 &args[2..]
             );
             if let Ok(cli) = result {
@@ -2987,7 +3031,7 @@ mod tests {
     #[test]
     fn test_rewrite_clap_quoted_single_arg() {
         // Quoted form: `obliterate rewrite "git status"` — single arg containing spaces
-        let result = Cli::try_parse_from(["rtk", "rewrite", "git status"]);
+        let result = Cli::try_parse_from(["obliterate", "rewrite", "git status"]);
         assert!(result.is_ok());
         if let Ok(cli) = result {
             match cli.command {
@@ -3048,7 +3092,7 @@ mod tests {
     #[test]
     fn test_pnpm_subcommand_with_filter() {
         let cli = Cli::try_parse_from([
-            "rtk", "pnpm", "--filter", "@app1", "--filter", "@app2", "list", "--filter", "@app3",
+            "obliterate", "pnpm", "--filter", "@app1", "--filter", "@app2", "list", "--filter", "@app3",
             "--filter", "@app4", "--prod",
         ])
         .unwrap();
@@ -3070,7 +3114,7 @@ mod tests {
 
     #[test]
     fn test_git_push_u_flag_passes_through() {
-        let cli = Cli::try_parse_from(["rtk", "git", "push", "-u", "origin", "my-branch"]).unwrap();
+        let cli = Cli::try_parse_from(["obliterate", "git", "push", "-u", "origin", "my-branch"]).unwrap();
         assert!(
             !cli.ultra_compact,
             "-u on git push must NOT be consumed as --ultra-compact"
@@ -3094,7 +3138,7 @@ mod tests {
     fn test_pnpm_subcommand_with_short_filter() {
         // -F is the short form of --filter in pnpm
         let cli =
-            Cli::try_parse_from(["rtk", "pnpm", "-F", "@app1", "-F", "@app2", "list"]).unwrap();
+            Cli::try_parse_from(["obliterate", "pnpm", "-F", "@app1", "-F", "@app2", "list"]).unwrap();
         match cli.command {
             Commands::Pnpm { filter, .. } => {
                 assert_eq!(filter, vec!["@app1", "@app2"]);
@@ -3106,7 +3150,7 @@ mod tests {
     #[test]
     fn test_pnpm_typecheck_without_filters() {
         let cli = Cli::try_parse_from([
-            "rtk",
+            "obliterate",
             "pnpm",
             "typecheck",
             "--filter",
@@ -3129,7 +3173,7 @@ mod tests {
     #[test]
     fn test_pnpm_typecheck_with_filters() {
         let cli = Cli::try_parse_from([
-            "rtk",
+            "obliterate",
             "pnpm",
             "--filter",
             "@app1",
@@ -3155,7 +3199,7 @@ mod tests {
 
     #[test]
     fn test_ultra_compact_long_form_still_works() {
-        let cli = Cli::try_parse_from(["rtk", "--ultra-compact", "git", "status"]).unwrap();
+        let cli = Cli::try_parse_from(["obliterate", "--ultra-compact", "git", "status"]).unwrap();
         assert!(
             cli.ultra_compact,
             "--ultra-compact long form must still enable ultra-compact mode"
@@ -3164,11 +3208,11 @@ mod tests {
 
     #[test]
     fn test_npx_unknown_tool_passthrough() {
-        // The bug (rtk-ai/rtk#815) was that unknown tools under `rtk npx`
+        // The bug (obliterate-ai/obliterate#815) was that unknown tools under `obliterate npx`
         // were dispatched to `npm` instead of `npx`. At the parse level, the
         // Npx variant must carry all args through unchanged so the dispatch
         // arm can forward them to npx.
-        let cli = Cli::try_parse_from(["rtk", "npx", "cowsay", "hello"]).unwrap();
+        let cli = Cli::try_parse_from(["obliterate", "npx", "cowsay", "hello"]).unwrap();
         match cli.command {
             Commands::Npx { args } => {
                 assert_eq!(args, vec!["cowsay", "hello"]);
@@ -3180,13 +3224,13 @@ mod tests {
     #[test]
     fn test_init_pi_flag_rejected() {
         // --pi has been removed; --agent pi is the canonical form
-        let result = Cli::try_parse_from(["rtk", "init", "--pi"]);
+        let result = Cli::try_parse_from(["obliterate", "init", "--pi"]);
         assert!(result.is_err(), "--pi must be rejected as unknown argument");
     }
 
     #[test]
     fn test_init_agent_pi_parses() {
-        let cli = Cli::try_parse_from(["rtk", "init", "--agent", "pi"]).unwrap();
+        let cli = Cli::try_parse_from(["obliterate", "init", "--agent", "pi"]).unwrap();
         match cli.command {
             Commands::Init { agent, .. } => {
                 assert_eq!(
@@ -3201,7 +3245,7 @@ mod tests {
 
     #[test]
     fn test_init_uninstall_agent_pi_parses() {
-        let cli = Cli::try_parse_from(["rtk", "init", "--uninstall", "--agent", "pi", "--global"])
+        let cli = Cli::try_parse_from(["obliterate", "init", "--uninstall", "--agent", "pi", "--global"])
             .unwrap();
         match cli.command {
             Commands::Init {

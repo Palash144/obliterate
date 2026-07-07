@@ -2,7 +2,7 @@
 
 use crate::core::stream::exec_capture;
 use crate::core::tracking;
-use crate::core::truncate::CAP_LIST;
+use crate::core::truncate::cap_list;
 use crate::core::utils::resolved_command;
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -10,11 +10,10 @@ use std::collections::HashMap;
 use std::ffi::OsString;
 
 use crate::parser::{
-    emit_degradation_warning, emit_passthrough_warning, truncate_passthrough, Dependency,
-    DependencyState, FormatMode, OutputParser, ParseResult, TokenFormatter,
+    emit_degradation_warning, emit_passthrough_warning, gate_dependency_parse_result,
+    truncate_passthrough, Dependency, DependencyState, FormatMode, OutputParser, ParseResult,
+    TokenFormatter,
 };
-
-const MAX_LISTING: usize = CAP_LIST;
 
 /// pnpm list JSON output structure
 #[derive(Debug, Deserialize)]
@@ -290,6 +289,7 @@ fn extract_outdated_text(output: &str) -> Option<DependencyState> {
 /// `cap = false` for `pnpm list --prod` / `pnpm list --dev` (hint targets,
 /// must show every package so the LLM can find what was hidden by the cap).
 fn format_dependency_listing(state: &DependencyState, cap: bool) -> String {
+    let max_listing = cap_list();
     let prod: Vec<_> = state.dependencies.iter().filter(|d| !d.dev_dependency).collect();
     let dev: Vec<_> = state.dependencies.iter().filter(|d| d.dev_dependency).collect();
     let total = state.total_packages.max(state.dependencies.len());
@@ -303,19 +303,23 @@ fn format_dependency_listing(state: &DependencyState, cap: bool) -> String {
 
     if !prod.is_empty() {
         lines.push("[prod]".to_string());
-        let shown = if cap { prod.len().min(MAX_LISTING) } else { prod.len() };
+        let shown = if cap {
+            prod.len().min(max_listing)
+        } else {
+            prod.len()
+        };
         for dep in prod.iter().take(shown) {
             lines.push(format!("  {} {}", dep.name, dep.current_version));
         }
-        if cap && prod.len() > MAX_LISTING {
-            lines.push(format!("  … +{} more", prod.len() - MAX_LISTING));
+        if cap && prod.len() > max_listing {
+            lines.push(format!("  … +{} more", prod.len() - max_listing));
             let all_prod = prod
                 .iter()
                 .map(|dep| format!("  {} {}", dep.name, dep.current_version))
                 .collect::<Vec<_>>()
                 .join("\n");
             if let Some(hint) =
-                crate::core::tee::force_tee_tail_hint(&all_prod, "pnpm-prod", MAX_LISTING + 1)
+                crate::core::tee::force_tee_tail_hint(&all_prod, "pnpm-prod", max_listing + 1)
             {
                 lines.push(format!("  {}", hint));
             }
@@ -324,19 +328,23 @@ fn format_dependency_listing(state: &DependencyState, cap: bool) -> String {
 
     if !dev.is_empty() {
         lines.push("[dev]".to_string());
-        let shown = if cap { dev.len().min(MAX_LISTING) } else { dev.len() };
+        let shown = if cap {
+            dev.len().min(max_listing)
+        } else {
+            dev.len()
+        };
         for dep in dev.iter().take(shown) {
             lines.push(format!("  {} {}", dep.name, dep.current_version));
         }
-        if cap && dev.len() > MAX_LISTING {
-            lines.push(format!("  … +{} more", dev.len() - MAX_LISTING));
+        if cap && dev.len() > max_listing {
+            lines.push(format!("  … +{} more", dev.len() - max_listing));
             let all_dev = dev
                 .iter()
                 .map(|dep| format!("  {} {}", dep.name, dep.current_version))
                 .collect::<Vec<_>>()
                 .join("\n");
             if let Some(hint) =
-                crate::core::tee::force_tee_tail_hint(&all_dev, "pnpm-dev", MAX_LISTING + 1)
+                crate::core::tee::force_tee_tail_hint(&all_dev, "pnpm-dev", max_listing + 1)
             {
                 lines.push(format!("  {}", hint));
             }
@@ -385,6 +393,16 @@ fn run_list(depth: usize, args: &[String], verbose: u8) -> Result<i32> {
         .any(|a| matches!(a.as_str(), "--prod" | "-P" | "--dev" | "-D"));
 
     let parse_result = PnpmListParser::parse(&result.stdout);
+    let (parse_result, confidence_warning) =
+        gate_dependency_parse_result(parse_result, &result.stdout, 0.80, 0.55);
+    if let Some(reason) = confidence_warning {
+        emit_passthrough_warning("pnpm list", &reason);
+    }
+    let parse_tier = match &parse_result {
+        ParseResult::Full(_) => tracking::PARSE_TIER_FULL,
+        ParseResult::Degraded(_, _) => tracking::PARSE_TIER_DEGRADED,
+        ParseResult::Passthrough(_) => tracking::PARSE_TIER_PASSTHROUGH,
+    };
 
     let filtered = match parse_result {
         ParseResult::Full(data) => {
@@ -407,9 +425,10 @@ fn run_list(depth: usize, args: &[String], verbose: u8) -> Result<i32> {
 
     println!("{}", filtered);
 
-    timer.track(
+    timer.track_with_parse_tier(
         &format!("pnpm list --depth={}", depth),
-        &format!("rtk pnpm list --depth={}", depth),
+        &format!("obliterate pnpm list --depth={}", depth),
+        parse_tier,
         &result.stdout,
         &filtered,
     );
@@ -434,6 +453,16 @@ fn run_outdated(args: &[String], verbose: u8) -> Result<i32> {
 
     // Parse output using PnpmOutdatedParser
     let parse_result = PnpmOutdatedParser::parse(&result.stdout);
+    let (parse_result, confidence_warning) =
+        gate_dependency_parse_result(parse_result, &result.stdout, 0.80, 0.55);
+    if let Some(reason) = confidence_warning {
+        emit_passthrough_warning("pnpm outdated", &reason);
+    }
+    let parse_tier = match &parse_result {
+        ParseResult::Full(_) => tracking::PARSE_TIER_FULL,
+        ParseResult::Degraded(_, _) => tracking::PARSE_TIER_DEGRADED,
+        ParseResult::Passthrough(_) => tracking::PARSE_TIER_PASSTHROUGH,
+    };
     let mode = FormatMode::from_verbosity(verbose);
 
     let filtered = match parse_result {
@@ -461,7 +490,13 @@ fn run_outdated(args: &[String], verbose: u8) -> Result<i32> {
         println!("{}", filtered);
     }
 
-    timer.track("pnpm outdated", "rtk pnpm outdated", &combined, &filtered);
+    timer.track_with_parse_tier(
+        "pnpm outdated",
+        "obliterate pnpm outdated",
+        parse_tier,
+        &combined,
+        &filtered,
+    );
 
     Ok(0)
 }
@@ -492,7 +527,7 @@ fn run_install(args: &[String], verbose: u8) -> Result<i32> {
 
     println!("{}", filtered);
 
-    timer.track("pnpm install", "rtk pnpm install", &combined, &filtered);
+    timer.track("pnpm install", "obliterate pnpm install", &combined, &filtered);
 
     Ok(0)
 }
@@ -635,9 +670,10 @@ mod tests {
         let prod: Vec<&str> = (0..60).map(|_| "pkg").collect();
         let state = make_state(&prod, &["eslint"]);
         let out = format_dependency_listing(&state, true);
+        let max_listing = cap_list();
         let prod_count = 60usize;
         assert!(
-            out.contains(&format!("… +{} more", prod_count - MAX_LISTING)),
+            out.contains(&format!("… +{} more", prod_count - max_listing)),
             "truncation count missing: got\n{out}"
         );
     }

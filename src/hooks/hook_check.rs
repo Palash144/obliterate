@@ -1,10 +1,10 @@
-//! Detects whether RTK hooks are installed and warns if they are outdated.
+//! Detects whether Obliterate hooks are installed and warns if they are outdated.
 
 use super::constants::{
     CLAUDE_DIR, CLAUDE_HOOK_COMMAND, HOOKS_SUBDIR, PRE_TOOL_USE_KEY, REWRITE_HOOK_FILE,
     SETTINGS_JSON,
 };
-use crate::core::constants::RTK_DATA_DIR;
+use crate::core::constants::OBLITERATE_DATA_DIR;
 use std::path::PathBuf;
 
 const CURRENT_HOOK_VERSION: u8 = 3;
@@ -124,7 +124,7 @@ fn check_and_warn() -> Option<()> {
 pub fn parse_hook_version(content: &str) -> u8 {
     // Version tag must be in the first 5 lines (shebang + header convention)
     for line in content.lines().take(5) {
-        if let Some(rest) = line.strip_prefix("# rtk-hook-version:") {
+        if let Some(rest) = line.strip_prefix("# obliterate-hook-version:") {
             if let Ok(v) = rest.trim().parse::<u8>() {
                 return v;
             }
@@ -147,7 +147,7 @@ fn hook_installed_path() -> Option<PathBuf> {
 }
 
 fn warn_marker_path() -> Option<PathBuf> {
-    let data_dir = dirs::data_local_dir()?.join(RTK_DATA_DIR);
+    let data_dir = dirs::data_local_dir()?.join(OBLITERATE_DATA_DIR);
     Some(data_dir.join(".hook_warn_last"))
 }
 
@@ -183,7 +183,7 @@ mod tests {
 
     #[test]
     fn test_parse_hook_version_present() {
-        let content = "#!/usr/bin/env bash\n# rtk-hook-version: 2\n# some comment\n";
+        let content = "#!/usr/bin/env bash\n# obliterate-hook-version: 2\n# some comment\n";
         assert_eq!(parse_hook_version(content), 2);
     }
 
@@ -195,7 +195,7 @@ mod tests {
 
     #[test]
     fn test_parse_hook_version_future() {
-        let content = "#!/usr/bin/env bash\n# rtk-hook-version: 5\n";
+        let content = "#!/usr/bin/env bash\n# obliterate-hook-version: 5\n";
         assert_eq!(parse_hook_version(content), 5);
     }
 

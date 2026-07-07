@@ -416,8 +416,8 @@ mod tests {
 
     #[test]
     fn test_match_project_filter() {
-        let encoded = ClaudeProvider::encode_project_path("/Users/foo/Sites/rtk");
-        assert!(encoded.contains("rtk"));
+        let encoded = ClaudeProvider::encode_project_path("/Users/foo/Sites/obliterate");
+        assert!(encoded.contains("obliterate"));
         assert!(encoded.contains("Sites"));
     }
 
@@ -439,7 +439,7 @@ mod tests {
     #[test]
     fn test_discover_sessions_applies_project_filter() {
         let projects_dir = tempfile::tempdir().unwrap();
-        let matching_project = projects_dir.path().join("-Users-test-rtk");
+        let matching_project = projects_dir.path().join("-Users-test-obliterate");
         let other_project = projects_dir.path().join("-Users-test-other");
         std::fs::create_dir_all(&matching_project).unwrap();
         std::fs::create_dir_all(&other_project).unwrap();
@@ -448,7 +448,7 @@ mod tests {
 
         let sessions = ClaudeProvider::discover_sessions_in_projects_dir(
             projects_dir.path(),
-            Some("rtk"),
+            Some("obliterate"),
             None,
         )
         .unwrap();

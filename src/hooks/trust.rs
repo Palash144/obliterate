@@ -1,6 +1,6 @@
 //! Controls which project-local TOML filters are allowed to run.
 //!
-//! `.rtk/filters.toml` is loaded from CWD with highest priority. An attacker
+//! `.obliterate/filters.toml` is loaded from CWD with highest priority. An attacker
 //! can commit this file to a public repo to control what an LLM sees — hiding
 //! malicious code, suppressing security scanner output, or rewriting command
 //! output entirely via `replace` and `match_output` primitives.
@@ -9,10 +9,10 @@
 //! - Untrusted filters are **skipped** (not "loaded with warning")
 //! - `obliterate trust` stores the SHA-256 hash after user review
 //! - Content changes invalidate trust (re-review required)
-//! - `RTK_TRUST_PROJECT_FILTERS=1` overrides for CI pipelines
+//! - `OBLITERATE_TRUST_PROJECT_FILTERS=1` overrides for CI pipelines
 
 use super::integrity;
-use crate::core::constants::{RTK_DATA_DIR, TRUSTED_FILTERS_JSON};
+use crate::core::constants::{OBLITERATE_DATA_DIR, TRUSTED_FILTERS_JSON};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -48,7 +48,7 @@ pub enum TrustStatus {
 
 fn store_path() -> Result<PathBuf> {
     let data_dir = dirs::data_local_dir().context("Cannot determine local data directory")?;
-    Ok(data_dir.join(RTK_DATA_DIR).join(TRUSTED_FILTERS_JSON))
+    Ok(data_dir.join(OBLITERATE_DATA_DIR).join(TRUSTED_FILTERS_JSON))
 }
 
 fn read_store() -> Result<TrustStore> {
@@ -96,7 +96,7 @@ fn canonical_key(filter_path: &Path) -> Result<String> {
 pub fn check_trust(filter_path: &Path) -> Result<TrustStatus> {
     // Fast path: env var override for CI pipelines only.
     // Requires a known CI env var to be set to prevent .envrc injection attacks.
-    if std::env::var("RTK_TRUST_PROJECT_FILTERS").as_deref() == Ok("1") {
+    if std::env::var("OBLITERATE_TRUST_PROJECT_FILTERS").as_deref() == Ok("1") {
         let in_ci = std::env::var("CI").is_ok()
             || std::env::var("GITHUB_ACTIONS").is_ok()
             || std::env::var("GITLAB_CI").is_ok()
@@ -106,7 +106,7 @@ pub fn check_trust(filter_path: &Path) -> Result<TrustStatus> {
             return Ok(TrustStatus::EnvOverride);
         }
         eprintln!(
-            "[obliterate] WARNING: RTK_TRUST_PROJECT_FILTERS=1 ignored (CI environment not detected)"
+            "[obliterate] WARNING: OBLITERATE_TRUST_PROJECT_FILTERS=1 ignored (CI environment not detected)"
         );
     }
 
@@ -195,16 +195,16 @@ pub fn run_trust(list: bool) -> Result<()> {
         return Ok(());
     }
 
-    let filter_path = Path::new(".rtk/filters.toml");
+    let filter_path = Path::new(".obliterate/filters.toml");
     if !filter_path.exists() {
-        anyhow::bail!("No .rtk/filters.toml found in current directory");
+        anyhow::bail!("No .obliterate/filters.toml found in current directory");
     }
 
     // Read ONCE to prevent TOCTOU: display + hash from same buffer
-    let content_bytes = std::fs::read(filter_path).context("Failed to read .rtk/filters.toml")?;
+    let content_bytes = std::fs::read(filter_path).context("Failed to read .obliterate/filters.toml")?;
     let content = String::from_utf8_lossy(&content_bytes);
 
-    println!("=== .rtk/filters.toml ===");
+    println!("=== .obliterate/filters.toml ===");
     println!("{}", content);
     println!("=========================");
     println!();
@@ -224,7 +224,7 @@ pub fn run_trust(list: bool) -> Result<()> {
     trust_filter_with_hash(filter_path, &hash)?;
     println!();
     println!(
-        "Trusted .rtk/filters.toml (sha256:{})",
+        "Trusted .obliterate/filters.toml (sha256:{})",
         hash.get(..16).unwrap_or(&hash)
     );
     println!("Project-local filters will now be applied.");
@@ -232,14 +232,14 @@ pub fn run_trust(list: bool) -> Result<()> {
     Ok(())
 }
 
-/// Run `rtk untrust` — revoke trust for project-local filters.
+/// Run `obliterate untrust` — revoke trust for project-local filters.
 pub fn run_untrust() -> Result<()> {
-    let filter_path = Path::new(".rtk/filters.toml");
+    let filter_path = Path::new(".obliterate/filters.toml");
     // If file doesn't exist, untrust by canonical path lookup won't work.
     // Try anyway (file may have been deleted after trust), fallback gracefully.
     let removed = untrust_filter(filter_path).unwrap_or(false);
     if removed {
-        println!("Trust revoked for .rtk/filters.toml");
+        println!("Trust revoked for .obliterate/filters.toml");
         println!("Project-local filters will no longer be applied.");
     } else {
         println!("No trust entry found for current directory.");
@@ -439,12 +439,12 @@ mod tests {
 
         // Both env vars must be set: trust override + CI indicator
         #[allow(deprecated)]
-        std::env::set_var("RTK_TRUST_PROJECT_FILTERS", "1");
+        std::env::set_var("OBLITERATE_TRUST_PROJECT_FILTERS", "1");
         #[allow(deprecated)]
         std::env::set_var("CI", "true");
         let status = check_trust(&filter).unwrap();
         #[allow(deprecated)]
-        std::env::remove_var("RTK_TRUST_PROJECT_FILTERS");
+        std::env::remove_var("OBLITERATE_TRUST_PROJECT_FILTERS");
         #[allow(deprecated)]
         std::env::remove_var("CI");
 

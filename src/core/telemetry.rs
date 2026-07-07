@@ -1,6 +1,6 @@
 //! Optional usage ping so we know which commands people run most.
 
-use super::constants::RTK_DATA_DIR;
+use super::constants::OBLITERATE_DATA_DIR;
 use crate::core::config;
 use crate::core::tracking;
 use sha2::{Digest, Sha256};
@@ -11,9 +11,13 @@ use std::sync::OnceLock;
 
 static CACHED_SALT: OnceLock<String> = OnceLock::new();
 
-const TELEMETRY_URL: Option<&str> = option_env!("RTK_TELEMETRY_URL");
-const TELEMETRY_TOKEN: Option<&str> = option_env!("RTK_TELEMETRY_TOKEN");
-const PING_INTERVAL_SECS: u64 = 23 * 3600; // 23 hours
+const TELEMETRY_URL: Option<&str> = option_env!("OBLITERATE_TELEMETRY_URL");
+const TELEMETRY_TOKEN: Option<&str> = option_env!("OBLITERATE_TELEMETRY_TOKEN");
+const PING_INTERVAL_SECS: u64 = 24 * 3600; // once per day
+
+pub fn telemetry_available() -> bool {
+    TELEMETRY_URL.is_some()
+}
 
 /// Send a telemetry ping if enabled and not already sent today.
 /// Fire-and-forget: errors are silently ignored.
@@ -24,7 +28,7 @@ pub fn maybe_ping() {
     }
 
     // Check opt-out: env var
-    if std::env::var("RTK_TELEMETRY_DISABLED").unwrap_or_default() == "1" {
+    if std::env::var("OBLITERATE_TELEMETRY_DISABLED").unwrap_or_default() == "1" {
         return;
     }
 
@@ -86,6 +90,7 @@ fn send_ping() -> Result<(), Box<dyn std::error::Error>> {
         None => EnrichedStats {
             passthrough_top: vec![],
             parse_failures_24h: 0,
+            parse_tier_hotspots: vec![],
             low_savings_commands: vec![],
             avg_savings_per_command: 0.0,
             hook_type: detect_hook_type(),
@@ -117,6 +122,7 @@ fn send_ping() -> Result<(), Box<dyn std::error::Error>> {
         // Quality: identify gaps and weak filters
         "passthrough_top": enriched.passthrough_top,
         "parse_failures_24h": enriched.parse_failures_24h,
+        "parse_tier_hotspots": enriched.parse_tier_hotspots,
         "low_savings_commands": enriched.low_savings_commands,
         "avg_savings_per_command": enriched.avg_savings_per_command,
         // Adoption: which tools and configs
@@ -142,7 +148,7 @@ fn send_ping() -> Result<(), Box<dyn std::error::Error>> {
     let mut req = ureq::post(url).set("Content-Type", "application/json");
 
     if let Some(token) = TELEMETRY_TOKEN {
-        req = req.set("X-RTK-Token", token);
+        req = req.set("X-Obliterate-Token", token);
     }
 
     // 2 second timeout — if server is down, we move on
@@ -208,7 +214,7 @@ fn random_salt() -> String {
 pub fn salt_file_path() -> PathBuf {
     dirs::data_local_dir()
         .unwrap_or_else(|| PathBuf::from("/tmp"))
-        .join("rtk")
+        .join("obliterate")
         .join(".device_salt")
 }
 
@@ -234,6 +240,7 @@ struct EnrichedStats {
     // Quality: identify gaps and weak filters
     passthrough_top: Vec<String>,
     parse_failures_24h: i64,
+    parse_tier_hotspots: Vec<String>,
     low_savings_commands: Vec<String>,
     avg_savings_per_command: f64,
     // Adoption: which tools and configs
@@ -267,6 +274,15 @@ fn get_enriched_stats(tracker: &tracking::Tracker) -> EnrichedStats {
         .collect();
 
     let parse_failures_24h = tracker.parse_failures_since(since_24h).unwrap_or(0);
+    let parse_tier_hotspots = tracker
+        .get_parse_tier_summary(None, 5)
+        .map(|s| {
+            s.by_command
+                .into_iter()
+                .map(|c| format!("{}:{:.0}%/{:.0}%", c.command, c.degraded_pct, c.passthrough_pct))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
 
     let low_savings_commands = tracker
         .low_savings_commands(5)
@@ -302,6 +318,7 @@ fn get_enriched_stats(tracker: &tracking::Tracker) -> EnrichedStats {
     EnrichedStats {
         passthrough_top,
         parse_failures_24h,
+        parse_tier_hotspots,
         low_savings_commands,
         avg_savings_per_command,
         hook_type: detect_hook_type(),
@@ -321,7 +338,15 @@ fn get_enriched_stats(tracker: &tracking::Tracker) -> EnrichedStats {
 
 /// Build meta-command usage counts (gain, discover, proxy, verify, learn, init).
 fn build_meta_usage(tracker: &tracking::Tracker) -> serde_json::Value {
-    let meta_cmds = ["gain", "discover", "proxy", "verify", "learn", "init"];
+    let meta_cmds = [
+        "gain",
+        "discover",
+        "proxy",
+        "verify",
+        "learn",
+        "init",
+        "parse-health",
+    ];
     let mut usage = serde_json::Map::new();
     for meta in &meta_cmds {
         let count = tracker.count_meta_command(meta).unwrap_or(0);
@@ -335,7 +360,7 @@ fn build_meta_usage(tracker: &tracking::Tracker) -> serde_json::Value {
 /// Check if user has a config.toml file.
 fn detect_has_config() -> bool {
     dirs::config_dir()
-        .map(|d| d.join("rtk/config.toml").exists())
+        .map(|d| d.join("obliterate/config.toml").exists())
         .unwrap_or(false)
 }
 
@@ -355,11 +380,11 @@ fn detect_hook_type() -> String {
 
     // Check in order of popularity
     let checks = [
-        (home.join(".claude/hooks/rtk-rewrite.sh"), "claude"),
-        (home.join(".claude/hooks/rtk-rewrite.json"), "claude"),
-        (home.join(".gemini/hooks/rtk-hook.sh"), "gemini"),
+        (home.join(".claude/hooks/obliterate-rewrite.sh"), "claude"),
+        (home.join(".claude/hooks/obliterate-rewrite.json"), "claude"),
+        (home.join(".gemini/hooks/obliterate-hook.sh"), "gemini"),
         (home.join(".codex/AGENTS.md"), "codex"),
-        (home.join(".cursor/hooks/rtk-rewrite.json"), "cursor"),
+        (home.join(".cursor/hooks/obliterate-rewrite.json"), "cursor"),
     ];
 
     for (path, name) in &checks {
@@ -370,7 +395,7 @@ fn detect_hook_type() -> String {
 
     // Check project-level hooks
     if let Ok(cwd) = std::env::current_dir() {
-        if cwd.join(".claude/hooks/rtk-rewrite.sh").exists() {
+        if cwd.join(".claude/hooks/obliterate-rewrite.sh").exists() {
             return "claude".to_string();
         }
     }
@@ -382,9 +407,9 @@ fn detect_hook_type() -> String {
 fn count_custom_toml_filters() -> usize {
     let mut count = 0;
 
-    // Project-local: .rtk/filters/*.toml
+    // Project-local: .obliterate/filters/*.toml
     if let Ok(cwd) = std::env::current_dir() {
-        if let Ok(entries) = std::fs::read_dir(cwd.join(".rtk/filters")) {
+        if let Ok(entries) = std::fs::read_dir(cwd.join(".obliterate/filters")) {
             count += entries
                 .filter_map(|e| e.ok())
                 .filter(|e| e.path().extension().is_some_and(|ext| ext == "toml"))
@@ -392,9 +417,9 @@ fn count_custom_toml_filters() -> usize {
         }
     }
 
-    // Global: ~/.config/rtk/filters/*.toml
+    // Global: ~/.config/obliterate/filters/*.toml
     if let Some(config_dir) = dirs::config_dir() {
-        if let Ok(entries) = std::fs::read_dir(config_dir.join("rtk/filters")) {
+        if let Ok(entries) = std::fs::read_dir(config_dir.join("obliterate/filters")) {
             count += entries
                 .filter_map(|e| e.ok())
                 .filter(|e| e.path().extension().is_some_and(|ext| ext == "toml"))
@@ -418,7 +443,7 @@ fn detect_install_method() -> &'static str {
 }
 
 fn install_method_from_path(path: &str) -> &'static str {
-    if path.contains("/Cellar/rtk/") || path.contains("/homebrew/") {
+    if path.contains("/Cellar/obliterate/") || path.contains("/homebrew/") {
         "homebrew"
     } else if path.contains("/.cargo/bin/") || path.contains("\\.cargo\\bin\\") {
         "cargo"
@@ -434,7 +459,7 @@ fn install_method_from_path(path: &str) -> &'static str {
 pub fn telemetry_marker_path() -> PathBuf {
     let data_dir = dirs::data_local_dir()
         .unwrap_or_else(|| PathBuf::from("/tmp"))
-        .join(RTK_DATA_DIR);
+        .join(OBLITERATE_DATA_DIR);
     let _ = std::fs::create_dir_all(&data_dir);
     data_dir.join(".telemetry_last_ping")
 }
@@ -480,55 +505,55 @@ mod tests {
     }
 
     #[test]
-    fn test_salt_file_path_is_in_rtk_dir() {
+    fn test_salt_file_path_is_in_obliterate_dir() {
         let path = salt_file_path();
-        assert!(path.to_string_lossy().contains("rtk"));
+        assert!(path.to_string_lossy().contains("obliterate"));
         assert!(path.to_string_lossy().contains(".device_salt"));
     }
 
     #[test]
     fn test_marker_path_exists() {
         let path = telemetry_marker_path();
-        assert!(path.to_string_lossy().contains("rtk"));
+        assert!(path.to_string_lossy().contains("obliterate"));
     }
 
     #[test]
     fn test_install_method_unix_paths() {
         assert_eq!(
-            install_method_from_path("/opt/homebrew/Cellar/rtk/0.28.0/bin/rtk"),
+            install_method_from_path("/opt/homebrew/Cellar/obliterate/0.28.0/bin/obliterate"),
             "homebrew"
         );
         assert_eq!(
-            install_method_from_path("/usr/local/homebrew/bin/rtk"),
+            install_method_from_path("/usr/local/homebrew/bin/obliterate"),
             "homebrew"
         );
         assert_eq!(
-            install_method_from_path("/home/user/.cargo/bin/rtk"),
+            install_method_from_path("/home/user/.cargo/bin/obliterate"),
             "cargo"
         );
         assert_eq!(
-            install_method_from_path("/home/user/.local/bin/rtk"),
+            install_method_from_path("/home/user/.local/bin/obliterate"),
             "script"
         );
         assert_eq!(
-            install_method_from_path("/nix/store/abc123-rtk/bin/rtk"),
+            install_method_from_path("/nix/store/abc123-obliterate/bin/obliterate"),
             "nix"
         );
-        assert_eq!(install_method_from_path("/usr/bin/rtk"), "other");
+        assert_eq!(install_method_from_path("/usr/bin/obliterate"), "other");
     }
 
     #[test]
     fn test_install_method_windows_paths() {
         assert_eq!(
-            install_method_from_path("C:\\Users\\user\\.cargo\\bin\\rtk.exe"),
+            install_method_from_path("C:\\Users\\user\\.cargo\\bin\\obliterate.exe"),
             "cargo"
         );
         assert_eq!(
-            install_method_from_path("C:\\Users\\user\\.local\\bin\\rtk.exe"),
+            install_method_from_path("C:\\Users\\user\\.local\\bin\\obliterate.exe"),
             "script"
         );
         assert_eq!(
-            install_method_from_path("C:\\Program Files\\rtk\\rtk.exe"),
+            install_method_from_path("C:\\Program Files\\obliterate\\obliterate.exe"),
             "other"
         );
     }

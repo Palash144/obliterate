@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# rtk-hook-version: 3
-# RTK Claude Code hook — rewrites commands to use rtk for token savings.
-# Requires: rtk >= 0.23.0, jq
+# obliterate-hook-version: 3
+# Obliterate Claude Code hook — rewrites commands to use obliterate for token savings.
+# Requires: obliterate >= 0.23.0, jq
 #
 # This is a thin delegating hook: all rewrite logic lives in `obliterate rewrite`,
 # which is the single source of truth (src/discover/registry.rs).
@@ -9,34 +9,34 @@
 #
 # Exit code protocol for `obliterate rewrite`:
 #   0 + stdout  Rewrite found, no deny/ask rule matched → auto-allow
-#   1           No RTK equivalent → pass through unchanged
+#   1           No Obliterate equivalent → pass through unchanged
 #   2           Deny rule matched → pass through (Claude Code native deny handles it)
 #   3 + stdout  Ask rule matched → rewrite but let Claude Code prompt the user
 
 if ! command -v jq &>/dev/null; then
-  echo "[rtk] WARNING: jq is not installed. Hook cannot rewrite commands. Install jq: https://jqlang.github.io/jq/download/" >&2
+  echo "[obliterate] WARNING: jq is not installed. Hook cannot rewrite commands. Install jq: https://jqlang.github.io/jq/download/" >&2
   exit 0
 fi
 
 if ! command -v obliterate &>/dev/null; then
-  echo "[rtk] WARNING: rtk is not installed or not in PATH. Hook cannot rewrite commands. Install: https://github.com/rtk-ai/rtk#installation" >&2
+  echo "[obliterate] WARNING: obliterate is not installed or not in PATH. Hook cannot rewrite commands. Install: https://github.com/obliterate-ai/obliterate#installation" >&2
   exit 0
 fi
 
-# Version guard: rtk rewrite was added in 0.23.0.
+# Version guard: obliterate rewrite was added in 0.23.0.
 # Older binaries: warn once and exit cleanly (no silent failure).
 # Cache the version check to avoid spawning multiple processes on every hook call.
 CACHE_DIR=${XDG_CACHE_HOME:-$HOME/.cache}
-CACHE_FILE="$CACHE_DIR/rtk-hook-version-ok"
+CACHE_FILE="$CACHE_DIR/obliterate-hook-version-ok"
 if [ ! -f "$CACHE_FILE" ]; then
-  RTK_VERSION_RAW=$(rtk --version 2>/dev/null)
-  RTK_VERSION=${RTK_VERSION_RAW#rtk }
-  RTK_VERSION=${RTK_VERSION%% *}
-  if [ -n "$RTK_VERSION" ]; then
-    IFS=. read -r MAJOR MINOR PATCH <<<"$RTK_VERSION"
+  OBLITERATE_VERSION_RAW=$(obliterate --version 2>/dev/null)
+  OBLITERATE_VERSION=${OBLITERATE_VERSION_RAW#obliterate }
+  OBLITERATE_VERSION=${OBLITERATE_VERSION%% *}
+  if [ -n "$OBLITERATE_VERSION" ]; then
+    IFS=. read -r MAJOR MINOR PATCH <<<"$OBLITERATE_VERSION"
     # Require >= 0.23.0
     if [ "$MAJOR" -eq 0 ] && [ "$MINOR" -lt 23 ]; then
-      echo "[rtk] WARNING: rtk $RTK_VERSION is too old (need >= 0.23.0). Upgrade: cargo install rtk" >&2
+      echo "[obliterate] WARNING: obliterate $OBLITERATE_VERSION is too old (need >= 0.23.0). Upgrade: cargo install obliterate" >&2
       exit 0
     fi
   fi
@@ -52,17 +52,17 @@ if [ -z "$CMD" ]; then
 fi
 
 # Delegate all rewrite + permission logic to the Rust binary.
-REWRITTEN=$(rtk rewrite "$CMD" 2>/dev/null)
+REWRITTEN=$(obliterate rewrite "$CMD" 2>/dev/null)
 EXIT_CODE=$?
 
 case $EXIT_CODE in
   0)
     # Rewrite found, no permission rules matched — safe to auto-allow.
-    # If the output is identical, the command was already using RTK.
+    # If the output is identical, the command was already using Obliterate.
     [ "$CMD" = "$REWRITTEN" ] && exit 0
     ;;
   1)
-    # No RTK equivalent — pass through unchanged.
+    # No Obliterate equivalent — pass through unchanged.
     exit 0
     ;;
   2)
@@ -94,7 +94,7 @@ else
       "hookSpecificOutput": {
         "hookEventName": "PreToolUse",
         "permissionDecision": "allow",
-        "permissionDecisionReason": "RTK auto-rewrite",
+        "permissionDecisionReason": "Obliterate auto-rewrite",
         "updatedInput": .tool_input
       }
     }' <<<"$INPUT"

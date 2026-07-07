@@ -1,6 +1,6 @@
 //! Raw output recovery -- saves unfiltered output to disk on command failure.
 
-use super::constants::RTK_DATA_DIR;
+use super::constants::OBLITERATE_DATA_DIR;
 use crate::core::config::Config;
 use std::path::PathBuf;
 
@@ -37,7 +37,7 @@ fn sanitize_slug(slug: &str) -> String {
 /// Get the tee directory, respecting config and env overrides.
 fn get_tee_dir(config: &Config) -> Option<PathBuf> {
     // Env var override
-    if let Ok(dir) = std::env::var("RTK_TEE_DIR") {
+    if let Ok(dir) = std::env::var("OBLITERATE_TEE_DIR") {
         return Some(PathBuf::from(dir));
     }
 
@@ -46,8 +46,8 @@ fn get_tee_dir(config: &Config) -> Option<PathBuf> {
         return Some(dir.clone());
     }
 
-    // Default: ~/.local/share/rtk/tee/
-    dirs::data_local_dir().map(|d| d.join(RTK_DATA_DIR).join("tee"))
+    // Default: ~/.local/share/obliterate/tee/
+    dirs::data_local_dir().map(|d| d.join(OBLITERATE_DATA_DIR).join("tee"))
 }
 
 /// Rotate old tee files: keep only the last `max_files`, delete oldest.
@@ -149,8 +149,8 @@ fn write_tee_file(
 /// Write raw output to tee file if conditions are met.
 /// Returns file path on success, None if skipped/failed.
 pub fn tee_raw(raw: &str, command_slug: &str, exit_code: i32) -> Option<PathBuf> {
-    // Check RTK_TEE=0 env override (disable)
-    if std::env::var("RTK_TEE").ok().as_deref() == Some("0") {
+    // Check OBLITERATE_TEE=0 env override (disable)
+    if std::env::var("OBLITERATE_TEE").ok().as_deref() == Some("0") {
         return None;
     }
 
@@ -189,7 +189,7 @@ pub fn tee_and_hint(raw: &str, command_slug: &str, exit_code: i32) -> Option<Str
 }
 
 fn force_tee_path(content: &str, command_slug: &str) -> Option<PathBuf> {
-    if std::env::var("RTK_TEE").ok().as_deref() == Some("0") {
+    if std::env::var("OBLITERATE_TEE").ok().as_deref() == Some("0") {
         return None;
     }
 
@@ -440,7 +440,7 @@ mod tests {
 
     #[test]
     fn test_format_hint() {
-        let path = PathBuf::from("/tmp/rtk/tee/123_cargo_test.log");
+        let path = PathBuf::from("/tmp/obliterate/tee/123_cargo_test.log");
         let hint = format_hint(&path);
         assert!(hint.starts_with("[full output: "));
         assert!(hint.ends_with(']'));
@@ -464,14 +464,14 @@ enabled = true
 mode = "always"
 max_files = 10
 max_file_size = 524288
-directory = "/tmp/rtk-tee"
+directory = "/tmp/obliterate-tee"
 "#;
         let config: TeeConfig = toml::from_str(toml_str).unwrap();
         assert!(config.enabled);
         assert_eq!(config.mode, TeeMode::Always);
         assert_eq!(config.max_files, 10);
         assert_eq!(config.max_file_size, 524288);
-        assert_eq!(config.directory, Some(PathBuf::from("/tmp/rtk-tee")));
+        assert_eq!(config.directory, Some(PathBuf::from("/tmp/obliterate-tee")));
 
         // Round-trip
         let serialized = toml::to_string_pretty(&config).unwrap();
@@ -501,12 +501,12 @@ directory = "/tmp/rtk-tee"
 
     #[test]
     fn test_force_tee_hint_respects_env_disable() {
-        // When RTK_TEE=0, force_tee_hint should return None
-        std::env::set_var("RTK_TEE", "0");
+        // When OBLITERATE_TEE=0, force_tee_hint should return None
+        std::env::set_var("OBLITERATE_TEE", "0");
         let large_output = "x".repeat(1000);
         let hint = force_tee_hint(&large_output, "test_cmd");
-        std::env::remove_var("RTK_TEE");
-        assert!(hint.is_none(), "Should respect RTK_TEE=0");
+        std::env::remove_var("OBLITERATE_TEE");
+        assert!(hint.is_none(), "Should respect OBLITERATE_TEE=0");
     }
 
     #[test]
@@ -517,7 +517,7 @@ directory = "/tmp/rtk-tee"
 
     #[test]
     fn test_force_tee_tail_hint_format() {
-        let path = std::path::PathBuf::from("/tmp/rtk/tee/123_docker_images.log");
+        let path = std::path::PathBuf::from("/tmp/obliterate/tee/123_docker_images.log");
         let display = display_path(&path);
         let hint = format!("[see remaining: tail -n +{} {}]", 22, display);
         assert!(hint.starts_with("[see remaining: tail -n +22 "));

@@ -8,8 +8,8 @@ use regex::Regex;
 use serde::Deserialize;
 
 use crate::parser::{
-    emit_degradation_warning, emit_passthrough_warning, truncate_passthrough, FormatMode,
-    OutputParser, ParseResult, TestFailure, TestResult, TokenFormatter,
+    emit_degradation_warning, emit_passthrough_warning, gate_test_parse_result, truncate_passthrough,
+    FormatMode, OutputParser, ParseResult, TestFailure, TestResult, TokenFormatter,
 };
 
 /// Matches real Playwright JSON reporter output (suites → specs → tests → results)
@@ -293,6 +293,16 @@ pub fn run(args: &[String], verbose: u8) -> Result<i32> {
 
     // Parse output using PlaywrightParser
     let parse_result = PlaywrightParser::parse(&result.stdout);
+    let (parse_result, confidence_warning) =
+        gate_test_parse_result(parse_result, &result.stdout, 0.75, 0.55);
+    if let Some(reason) = confidence_warning {
+        emit_passthrough_warning("playwright", &reason);
+    }
+    let parse_tier = match &parse_result {
+        ParseResult::Full(_) => tracking::PARSE_TIER_FULL,
+        ParseResult::Degraded(_, _) => tracking::PARSE_TIER_DEGRADED,
+        ParseResult::Passthrough(_) => tracking::PARSE_TIER_PASSTHROUGH,
+    };
     let mode = FormatMode::from_verbosity(verbose);
 
     let filtered = match parse_result {
@@ -320,9 +330,10 @@ pub fn run(args: &[String], verbose: u8) -> Result<i32> {
         println!("{}", filtered);
     }
 
-    timer.track(
+    timer.track_with_parse_tier(
         &format!("playwright {}", args.join(" ")),
-        &format!("rtk playwright {}", args.join(" ")),
+        &format!("obliterate playwright {}", args.join(" ")),
+        parse_tier,
         &raw,
         &filtered,
     );

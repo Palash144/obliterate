@@ -9,7 +9,8 @@ use crate::core::tracking;
 use crate::core::utils::{package_manager_exec, strip_ansi};
 use crate::parser::{
     emit_degradation_warning, emit_passthrough_warning, extract_json_object, truncate_passthrough,
-    FormatMode, OutputParser, ParseResult, TestFailure, TestResult, TokenFormatter,
+    gate_test_parse_result, FormatMode, OutputParser, ParseResult, TestFailure, TestResult,
+    TokenFormatter,
 };
 use crate::Commands;
 
@@ -247,6 +248,16 @@ pub fn run_test(command: &Commands, args: &[String], verbose: u8) -> Result<i32>
 
     // Parse output using VitestParser
     let parse_result = VitestParser::parse(&result.stdout);
+    let (parse_result, confidence_warning) =
+        gate_test_parse_result(parse_result, &result.stdout, 0.75, 0.55);
+    if let Some(reason) = confidence_warning {
+        emit_passthrough_warning(framework, &reason);
+    }
+    let parse_tier = match &parse_result {
+        ParseResult::Full(_) => tracking::PARSE_TIER_FULL,
+        ParseResult::Degraded(_, _) => tracking::PARSE_TIER_DEGRADED,
+        ParseResult::Passthrough(_) => tracking::PARSE_TIER_PASSTHROUGH,
+    };
     let mode = FormatMode::from_verbosity(verbose);
 
     let filtered = match parse_result {
@@ -276,9 +287,10 @@ pub fn run_test(command: &Commands, args: &[String], verbose: u8) -> Result<i32>
         println!("{}", filtered);
     }
 
-    timer.track(
+    timer.track_with_parse_tier(
         format!("{} run", framework).as_str(),
-        format!("rtk {} run", framework).as_str(),
+        format!("obliterate {} run", framework).as_str(),
+        parse_tier,
         &combined,
         &filtered,
     );

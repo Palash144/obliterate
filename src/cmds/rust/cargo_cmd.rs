@@ -1278,10 +1278,10 @@ mod tests {
 
     #[test]
     fn test_restore_double_dash_with_separator() {
-        // rtk cargo test -- --nocapture → clap gives ["--nocapture"]
+        // obliterate cargo test -- --nocapture → clap gives ["--nocapture"]
         let args: Vec<String> = vec!["--nocapture".into()];
         let raw = vec![
-            "rtk".into(),
+            "obliterate".into(),
             "cargo".into(),
             "test".into(),
             "--".into(),
@@ -1293,10 +1293,10 @@ mod tests {
 
     #[test]
     fn test_restore_double_dash_with_test_name() {
-        // rtk cargo test my_test -- --nocapture → clap gives ["my_test", "--nocapture"]
+        // obliterate cargo test my_test -- --nocapture → clap gives ["my_test", "--nocapture"]
         let args: Vec<String> = vec!["my_test".into(), "--nocapture".into()];
         let raw = vec![
-            "rtk".into(),
+            "obliterate".into(),
             "cargo".into(),
             "test".into(),
             "my_test".into(),
@@ -1309,10 +1309,10 @@ mod tests {
 
     #[test]
     fn test_restore_double_dash_without_separator() {
-        // rtk cargo test my_test → no --, args unchanged
+        // obliterate cargo test my_test → no --, args unchanged
         let args: Vec<String> = vec!["my_test".into()];
         let raw = vec![
-            "rtk".into(),
+            "obliterate".into(),
             "cargo".into(),
             "test".into(),
             "my_test".into(),
@@ -1324,17 +1324,17 @@ mod tests {
     #[test]
     fn test_restore_double_dash_empty_args() {
         let args: Vec<String> = vec![];
-        let raw = vec!["rtk".into(), "cargo".into(), "test".into()];
+        let raw = vec!["obliterate".into(), "cargo".into(), "test".into()];
         let result = restore_double_dash_with_raw(&args, &raw);
         assert!(result.is_empty());
     }
 
     #[test]
     fn test_restore_double_dash_clippy() {
-        // rtk cargo clippy -- -D warnings → clap gives ["-D", "warnings"]
+        // obliterate cargo clippy -- -D warnings → clap gives ["-D", "warnings"]
         let args: Vec<String> = vec!["-D".into(), "warnings".into()];
         let raw = vec![
-            "rtk".into(),
+            "obliterate".into(),
             "cargo".into(),
             "clippy".into(),
             "--".into(),
@@ -1347,7 +1347,7 @@ mod tests {
 
     #[test]
     fn test_restore_double_dash_clippy_with_package_flags() {
-        // rtk cargo clippy -p my-service -p my-crate -- -D warnings
+        // obliterate cargo clippy -p my-service -p my-crate -- -D warnings
         // Clap with trailing_var_arg preserves "--" when args precede it
         // → clap gives ["-p", "my-service", "-p", "my-crate", "--", "-D", "warnings"]
         let args: Vec<String> = vec![
@@ -1360,7 +1360,7 @@ mod tests {
             "warnings".into(),
         ];
         let raw = vec![
-            "rtk".into(),
+            "obliterate".into(),
             "cargo".into(),
             "clippy".into(),
             "-p".into(),
@@ -1385,7 +1385,7 @@ mod tests {
     fn test_filter_cargo_build_success() {
         let output = r#"   Compiling libc v0.2.153
    Compiling cfg-if v1.0.0
-   Compiling rtk v0.5.0
+   Compiling obliterate v0.5.0
     Finished dev [unoptimized + debuginfo] target(s) in 15.23s
 "#;
         let result = filter_cargo_build(output);
@@ -1395,7 +1395,7 @@ mod tests {
 
     #[test]
     fn test_filter_cargo_build_errors() {
-        let output = r#"   Compiling rtk v0.5.0
+        let output = r#"   Compiling obliterate v0.5.0
 error[E0308]: mismatched types
  --> src/main.rs:10:5
   |
@@ -1412,9 +1412,9 @@ error: aborting due to 1 previous error
 
     #[test]
     fn test_filter_cargo_test_all_pass() {
-        let output = r#"   Compiling rtk v0.5.0
+        let output = r#"   Compiling obliterate v0.5.0
     Finished test [unoptimized + debuginfo] target(s) in 2.53s
-     Running target/debug/deps/rtk-abc123
+     Running target/debug/deps/obliterate-abc123
 
 running 15 tests
 test utils::tests::test_truncate_short_string ... ok
@@ -1458,14 +1458,14 @@ test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out
 
     #[test]
     fn test_filter_cargo_test_multi_suite_all_pass() {
-        let output = r#"   Compiling rtk v0.5.0
+        let output = r#"   Compiling obliterate v0.5.0
     Finished test [unoptimized + debuginfo] target(s) in 2.53s
-     Running unittests src/lib.rs (target/debug/deps/rtk-abc123)
+     Running unittests src/lib.rs (target/debug/deps/obliterate-abc123)
 
 running 50 tests
 test result: ok. 50 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s
 
-     Running unittests src/main.rs (target/debug/deps/rtk-def456)
+     Running unittests src/main.rs (target/debug/deps/obliterate-def456)
 
 running 30 tests
 test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
@@ -1475,7 +1475,7 @@ test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 running 25 tests
 test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
 
-   Doc-tests rtk
+   Doc-tests obliterate
 
 running 32 tests
 test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s
@@ -1605,7 +1605,7 @@ test result: MALFORMED LINE WITHOUT PROPER FORMAT
 
     #[test]
     fn test_filter_cargo_test_compile_error_preserves_error_header() {
-        let output = r#"   Compiling rtk v0.31.0 (/workspace/projects/rtk)
+        let output = r#"   Compiling obliterate v0.31.0 (/workspace/projects/obliterate)
 error[E0425]: cannot find value `missing_symbol` in this scope
  --> tests/repro_compile_fail.rs:3:13
   |
@@ -1613,7 +1613,7 @@ error[E0425]: cannot find value `missing_symbol` in this scope
   |             ^^^^^^^^^^^^^^ not found in this scope
 
 For more information about this error, try `rustc --explain E0425`.
-error: could not compile `rtk` (test "repro_compile_fail") due to 1 previous error
+error: could not compile `obliterate` (test "repro_compile_fail") due to 1 previous error
 "#;
         let result = filter_cargo_test(output);
         assert!(result.contains("cargo test: 1 errors, 0 warnings (1 crates)"));
@@ -1628,7 +1628,7 @@ error: could not compile `rtk` (test "repro_compile_fail") due to 1 previous err
 
     #[test]
     fn test_filter_cargo_clippy_clean() {
-        let output = r#"    Checking rtk v0.5.0
+        let output = r#"    Checking obliterate v0.5.0
     Finished dev [unoptimized + debuginfo] target(s) in 1.53s
 "#;
         let result = filter_cargo_clippy(output);
@@ -1637,7 +1637,7 @@ error: could not compile `rtk` (test "repro_compile_fail") due to 1 previous err
 
     #[test]
     fn test_filter_cargo_clippy_warnings() {
-        let output = r#"    Checking rtk v0.5.0
+        let output = r#"    Checking obliterate v0.5.0
 warning: unused variable: `x` [unused_variables]
  --> src/main.rs:10:9
   |
@@ -1650,7 +1650,7 @@ warning: this function has too many arguments [clippy::too_many_arguments]
 16| pub fn run(a: i32, b: i32, c: i32, d: i32, e: i32, f: i32, g: i32, h: i32) {}
   |
 
-warning: `rtk` (bin) generated 2 warnings
+warning: `obliterate` (bin) generated 2 warnings
     Finished dev [unoptimized + debuginfo] target(s) in 1.53s
 "#;
         let result = filter_cargo_clippy(output);
@@ -1661,7 +1661,7 @@ warning: `rtk` (bin) generated 2 warnings
 
     #[test]
     fn test_filter_cargo_clippy_includes_error_details() {
-        let output = r#"    Checking rtk v0.5.0
+        let output = r#"    Checking obliterate v0.5.0
 error: struct literals are not allowed here
 warning: unused variable: `x` [unused_variables]
     Finished dev [unoptimized + debuginfo] target(s) in 1.53s
@@ -1675,7 +1675,7 @@ warning: unused variable: `x` [unused_variables]
     #[test]
     fn test_filter_cargo_clippy_shows_full_error_block() {
         // Full multi-line error block must be shown so the developer can debug
-        let output = r#"    Checking rtk v0.5.0
+        let output = r#"    Checking obliterate v0.5.0
 error[E0308]: mismatched types
  --> src/main.rs:10:5
   |
@@ -1723,7 +1723,7 @@ error: aborting due to 2 previous errors
 
     #[test]
     fn test_filter_cargo_install_success() {
-        let output = r#"  Installing rtk v0.11.0
+        let output = r#"  Installing obliterate v0.11.0
   Downloading crates ...
   Downloaded anyhow v1.0.80
   Downloaded clap v4.5.0
@@ -1731,14 +1731,14 @@ error: aborting due to 2 previous errors
    Compiling cfg-if v1.0.0
    Compiling anyhow v1.0.80
    Compiling clap v4.5.0
-   Compiling rtk v0.11.0
+   Compiling obliterate v0.11.0
     Finished `release` profile [optimized] target(s) in 45.23s
-  Replacing /Users/user/.cargo/bin/rtk
-   Replaced package `rtk v0.9.4` with `rtk v0.11.0` (/Users/user/.cargo/bin/rtk)
+  Replacing /Users/user/.cargo/bin/obliterate
+   Replaced package `obliterate v0.9.4` with `obliterate v0.11.0` (/Users/user/.cargo/bin/obliterate)
 "#;
         let result = filter_cargo_install(output);
         assert!(result.contains("cargo install"), "got: {}", result);
-        assert!(result.contains("rtk v0.11.0"), "got: {}", result);
+        assert!(result.contains("obliterate v0.11.0"), "got: {}", result);
         assert!(result.contains("5 deps compiled"), "got: {}", result);
         assert!(result.contains("Replaced"), "got: {}", result);
         assert!(!result.contains("Compiling"), "got: {}", result);
@@ -1747,11 +1747,11 @@ error: aborting due to 2 previous errors
 
     #[test]
     fn test_filter_cargo_install_replace() {
-        let output = r#"  Installing rtk v0.11.0
-   Compiling rtk v0.11.0
+        let output = r#"  Installing obliterate v0.11.0
+   Compiling obliterate v0.11.0
     Finished `release` profile [optimized] target(s) in 10.0s
-  Replacing /Users/user/.cargo/bin/rtk
-   Replaced package `rtk v0.9.4` with `rtk v0.11.0` (/Users/user/.cargo/bin/rtk)
+  Replacing /Users/user/.cargo/bin/obliterate
+   Replaced package `obliterate v0.9.4` with `obliterate v0.11.0` (/Users/user/.cargo/bin/obliterate)
 "#;
         let result = filter_cargo_install(output);
         assert!(result.contains("cargo install"), "got: {}", result);
@@ -1761,8 +1761,8 @@ error: aborting due to 2 previous errors
 
     #[test]
     fn test_filter_cargo_install_error() {
-        let output = r#"  Installing rtk v0.11.0
-   Compiling rtk v0.11.0
+        let output = r#"  Installing obliterate v0.11.0
+   Compiling obliterate v0.11.0
 error[E0308]: mismatched types
  --> src/main.rs:10:5
   |
@@ -1780,11 +1780,11 @@ error: aborting due to 1 previous error
 
     #[test]
     fn test_filter_cargo_install_already_installed() {
-        let output = r#"  Ignored package `rtk v0.11.0`, is already installed
+        let output = r#"  Ignored package `obliterate v0.11.0`, is already installed
 "#;
         let result = filter_cargo_install(output);
         assert!(result.contains("already installed"), "got: {}", result);
-        assert!(result.contains("rtk v0.11.0"), "got: {}", result);
+        assert!(result.contains("obliterate v0.11.0"), "got: {}", result);
     }
 
     #[test]
@@ -1805,11 +1805,11 @@ error: aborting due to 1 previous error
 
     #[test]
     fn test_filter_cargo_install_path_warning() {
-        let output = r#"  Installing rtk v0.11.0
-   Compiling rtk v0.11.0
+        let output = r#"  Installing obliterate v0.11.0
+   Compiling obliterate v0.11.0
     Finished `release` profile [optimized] target(s) in 10.0s
-  Replacing /Users/user/.cargo/bin/rtk
-   Replaced package `rtk v0.9.4` with `rtk v0.11.0` (/Users/user/.cargo/bin/rtk)
+  Replacing /Users/user/.cargo/bin/obliterate
+   Replaced package `obliterate v0.9.4` with `obliterate v0.11.0` (/Users/user/.cargo/bin/obliterate)
 warning: be sure to add `/Users/user/.cargo/bin` to your PATH
 "#;
         let result = filter_cargo_install(output);
@@ -1824,8 +1824,8 @@ warning: be sure to add `/Users/user/.cargo/bin` to your PATH
 
     #[test]
     fn test_filter_cargo_install_multiple_errors() {
-        let output = r#"  Installing rtk v0.11.0
-   Compiling rtk v0.11.0
+        let output = r#"  Installing obliterate v0.11.0
+   Compiling obliterate v0.11.0
 error[E0308]: mismatched types
  --> src/main.rs:10:5
   |
@@ -1858,9 +1858,9 @@ error: aborting due to 2 previous errors
   Downloading crates ...
   Downloaded serde v1.0.200
    Compiling serde v1.0.200
-   Compiling rtk v0.11.0
+   Compiling obliterate v0.11.0
     Finished `release` profile [optimized] target(s) in 30.0s
-  Installing rtk v0.11.0
+  Installing obliterate v0.11.0
 "#;
         let result = filter_cargo_install(output);
         assert!(result.contains("cargo install"), "got: {}", result);
@@ -1871,8 +1871,8 @@ error: aborting due to 2 previous errors
 
     #[test]
     fn test_filter_cargo_install_from_path() {
-        let output = r#"  Installing /Users/user/projects/rtk
-   Compiling rtk v0.11.0
+        let output = r#"  Installing /Users/user/projects/obliterate
+   Compiling obliterate v0.11.0
     Finished `release` profile [optimized] target(s) in 10.0s
 "#;
         let result = filter_cargo_install(output);
@@ -1883,21 +1883,21 @@ error: aborting due to 2 previous errors
 
     #[test]
     fn test_format_crate_info() {
-        assert_eq!(format_crate_info("rtk", "v0.11.0", ""), "rtk v0.11.0");
-        assert_eq!(format_crate_info("rtk", "", ""), "rtk");
+        assert_eq!(format_crate_info("obliterate", "v0.11.0", ""), "obliterate v0.11.0");
+        assert_eq!(format_crate_info("obliterate", "", ""), "obliterate");
         assert_eq!(format_crate_info("", "", "package"), "package");
         assert_eq!(format_crate_info("", "v0.1.0", "fallback"), "fallback");
     }
 
     #[test]
     fn test_filter_cargo_nextest_all_pass() {
-        let output = r#"   Compiling rtk v0.15.2
+        let output = r#"   Compiling obliterate v0.15.2
     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
 ────────────────────────────
     Starting 301 tests across 1 binary
-        PASS [   0.009s] (1/301) rtk::bin/rtk cargo_cmd::tests::test_one
-        PASS [   0.008s] (2/301) rtk::bin/rtk cargo_cmd::tests::test_two
-        PASS [   0.007s] (301/301) rtk::bin/rtk cargo_cmd::tests::test_last
+        PASS [   0.009s] (1/301) obliterate::bin/obliterate cargo_cmd::tests::test_one
+        PASS [   0.008s] (2/301) obliterate::bin/obliterate cargo_cmd::tests::test_two
+        PASS [   0.007s] (301/301) obliterate::bin/obliterate cargo_cmd::tests::test_last
 ────────────────────────────
      Summary [   0.192s] 301 tests run: 301 passed, 0 skipped
 "#;
@@ -1981,8 +1981,8 @@ error: test run failed
     #[test]
     fn test_filter_cargo_nextest_with_skipped() {
         let output = r#"    Starting 50 tests across 2 binaries (3 tests skipped)
-        PASS [   0.010s] (1/50) rtk::bin/rtk test_one
-        PASS [   0.010s] (50/50) rtk::bin/rtk test_last
+        PASS [   0.010s] (1/50) obliterate::bin/obliterate test_one
+        PASS [   0.010s] (50/50) obliterate::bin/obliterate test_last
 ────────────────────────────
      Summary [   0.500s] 50 tests run: 50 passed, 3 skipped
 "#;
@@ -2048,7 +2048,7 @@ error: test run failed
     #[test]
     fn test_filter_cargo_nextest_compilation_stripped() {
         let output = r#"   Compiling serde v1.0.200
-   Compiling rtk v0.15.2
+   Compiling obliterate v0.15.2
    Downloading crates ...
     Finished `test` profile [unoptimized + debuginfo] target(s) in 5.00s
 ────────────────────────────
@@ -2142,7 +2142,7 @@ error: test run failed
 
     #[test]
     fn test_cargo_build_stream_success() {
-        let input = "   Compiling libc v0.2.153\n   Compiling cfg-if v1.0.0\n   Compiling rtk v0.5.0\n    Finished dev [unoptimized + debuginfo] target(s) in 15.23s\n";
+        let input = "   Compiling libc v0.2.153\n   Compiling cfg-if v1.0.0\n   Compiling obliterate v0.5.0\n    Finished dev [unoptimized + debuginfo] target(s) in 15.23s\n";
         let mut f = BlockStreamFilter::new(CargoBuildHandler::new());
         let result = run_block_filter(&mut f, input, 0);
         assert!(result.contains("3 crates compiled"), "got: {}", result);
@@ -2152,7 +2152,7 @@ error: test run failed
 
     #[test]
     fn test_cargo_build_stream_errors() {
-        let input = r#"   Compiling rtk v0.5.0
+        let input = r#"   Compiling obliterate v0.5.0
 error[E0308]: mismatched types
  --> src/main.rs:10:5
   |
@@ -2171,9 +2171,9 @@ error: aborting due to 1 previous error
 
     #[test]
     fn test_cargo_test_stream_all_pass() {
-        let input = r#"   Compiling rtk v0.5.0
+        let input = r#"   Compiling obliterate v0.5.0
     Finished test [unoptimized + debuginfo] target(s) in 2.53s
-     Running target/debug/deps/rtk-abc123
+     Running target/debug/deps/obliterate-abc123
 
 running 15 tests
 test utils::tests::test_truncate_short_string ... ok
@@ -2217,12 +2217,12 @@ test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out
 
     #[test]
     fn test_cargo_test_stream_multi_suite() {
-        let input = r#"     Running unittests src/lib.rs (target/debug/deps/rtk-abc123)
+        let input = r#"     Running unittests src/lib.rs (target/debug/deps/obliterate-abc123)
 
 running 50 tests
 test result: ok. 50 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s
 
-     Running unittests src/main.rs (target/debug/deps/rtk-def456)
+     Running unittests src/main.rs (target/debug/deps/obliterate-def456)
 
 running 30 tests
 test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
@@ -2238,7 +2238,7 @@ test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 
     #[test]
     fn test_cargo_test_stream_compile_error() {
-        let input = r#"   Compiling rtk v0.31.0 (/workspace/projects/rtk)
+        let input = r#"   Compiling obliterate v0.31.0 (/workspace/projects/obliterate)
 error[E0425]: cannot find value `missing_symbol` in this scope
  --> tests/repro_compile_fail.rs:3:13
   |
@@ -2246,7 +2246,7 @@ error[E0425]: cannot find value `missing_symbol` in this scope
   |             ^^^^^^^^^^^^^^ not found in this scope
 
 For more information about this error, try `rustc --explain E0425`.
-error: could not compile `rtk` (test "repro_compile_fail") due to 1 previous error
+error: could not compile `obliterate` (test "repro_compile_fail") due to 1 previous error
 "#;
         let mut f = BlockStreamFilter::new(CargoTestHandler::new());
         let result = run_block_filter(&mut f, input, 1);

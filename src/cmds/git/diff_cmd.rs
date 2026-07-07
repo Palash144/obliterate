@@ -20,34 +20,34 @@ pub fn run(file1: &Path, file2: &Path, verbose: u8) -> Result<()> {
     let lines1: Vec<&str> = content1.lines().collect();
     let lines2: Vec<&str> = content2.lines().collect();
     let diff = compute_diff(&lines1, &lines2);
-    let mut rtk = String::new();
+    let mut obliterate = String::new();
 
     if diff.added == 0 && diff.removed == 0 {
-        rtk.push_str("[ok] Files are identical");
-        println!("{}", rtk);
+        obliterate.push_str("[ok] Files are identical");
+        println!("{}", obliterate);
         timer.track(
             &format!("diff {} {}", file1.display(), file2.display()),
-            "rtk diff",
+            "obliterate diff",
             &raw,
-            &rtk,
+            &obliterate,
         );
         return Ok(());
     }
 
-    rtk.push_str(&format!("{} → {}\n", file1.display(), file2.display()));
-    rtk.push_str(&format!(
+    obliterate.push_str(&format!("{} → {}\n", file1.display(), file2.display()));
+    obliterate.push_str(&format!(
         "   +{} added, -{} removed, ~{} modified\n\n",
         diff.added, diff.removed, diff.modified
     ));
 
-    rtk.push_str(&format_diff_changes(&diff));
+    obliterate.push_str(&format_diff_changes(&diff));
 
-    print!("{}", rtk);
+    print!("{}", obliterate);
     timer.track(
         &format!("diff {} {}", file1.display(), file2.display()),
-        "rtk diff",
+        "obliterate diff",
         &raw,
-        &rtk,
+        &obliterate,
     );
     Ok(())
 }
@@ -64,7 +64,7 @@ pub fn run_stdin(_verbose: u8) -> Result<()> {
     let condensed = condense_unified_diff(&input);
     println!("{}", condensed);
 
-    timer.track("diff (stdin)", "rtk diff (stdin)", &input, &condensed);
+    timer.track("diff (stdin)", "obliterate diff (stdin)", &input, &condensed);
 
     Ok(())
 }

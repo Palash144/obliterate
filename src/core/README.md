@@ -11,7 +11,7 @@ Owns: configuration loading, token tracking persistence, TOML filter engine, tee
 Does **not** own: command-specific filtering logic (that's `cmds/`), hook lifecycle management (that's `src/hooks/`), or analytics dashboards (that's `analytics/`).
 
 ## Purpose
-Core infrastructure shared by all RTK command modules. Every filter, tracker, and command handler depends on these modules. No inward dependencies — leaf in the dependency graph (no circular imports possible).
+Core infrastructure shared by all Obliterate command modules. Every filter, tracker, and command handler depends on these modules. No inward dependencies — leaf in the dependency graph (no circular imports possible).
 
 ## TOML Filter Pipeline
 
@@ -27,8 +27,8 @@ The TOML DSL applies 8 stages in order:
 8. **on_empty**: Return message if result is empty after all stages
 
 Three-tier filter lookup (first match wins):
-1. `.rtk/filters.toml` (project-local, requires `rtk trust`)
-2. `~/.config/rtk/filters.toml` (user-global)
+1. `.obliterate/filters.toml` (project-local, requires `obliterate trust`)
+2. `~/.config/obliterate/filters.toml` (user-global)
 3. Built-in filters concatenated by `build.rs` at compile time
 
 ## Tracking Database Schema
@@ -38,7 +38,7 @@ CREATE TABLE commands (
   id INTEGER PRIMARY KEY,
   timestamp TEXT,              -- UTC ISO8601
   original_cmd TEXT,           -- "ls -la"
-  rtk_cmd TEXT,                -- "rtk ls"
+  obliterate_cmd TEXT,                -- "obliterate ls"
   project_path TEXT,           -- cwd (for project-scoped stats)
   input_tokens INTEGER,        -- estimated from raw output
   output_tokens INTEGER,       -- estimated from filtered output
@@ -125,9 +125,9 @@ When the truncated output is a **flat list** and the hidden items start at a pre
 
 ### Truncation Caps (`truncate`)
 
-`src/core/truncate.rs` defines four global cap policies — `CAP_ERRORS`, `CAP_WARNINGS`, `CAP_LIST`, `CAP_INVENTORY` — for the data classes RTK filters truncate. Each filter binds the right CAP to a local `const MAX_*` so the cap is one named jump away from the call site. These CAPs are the staging point for filter-level cap configuration (planned, not yet implemented): once the config surface lands, overriding `CAP_LIST` in `~/.config/rtk/config.toml` will tune every list filter in one place instead of editing 20+ files.
+`src/core/truncate.rs` defines four global cap policies — `CAP_ERRORS`, `CAP_WARNINGS`, `CAP_LIST`, `CAP_INVENTORY` — for the data classes Obliterate filters truncate. Each filter binds the right CAP to a local `const MAX_*` so the cap is one named jump away from the call site. These CAPs are the staging point for filter-level cap configuration (planned, not yet implemented): once the config surface lands, overriding `CAP_LIST` in `~/.config/obliterate/config.toml` will tune every list filter in one place instead of editing 20+ files.
 
-**Config policy.** Configured values are accepted as-is, including `0`, which means "summary only" — the filter still prints the count and the `[full output: …]` recovery hint, just no individual items. Caps are never refused and rtk never aborts on them, in keeping with the never-block-the-user fallback philosophy.
+**Config policy.** Configured values are accepted as-is, including `0`, which means "summary only" — the filter still prints the count and the `[full output: …]` recovery hint, just no individual items. Caps are never refused and obliterate never aborts on them, in keeping with the never-block-the-user fallback philosophy.
 
 **Deviating from a cap.** A filter whose items are unusually verbose (multi-line entries, backtraces) may show fewer than its class cap. Use `truncate::reduced(cap, by)` rather than a bare `cap - by`: `reduced` returns `cap - by`, except when the reduction would empty the list (`by >= cap`), in which case it drops the deviation and uses the full `cap`. This guarantees a deviation can never hide every item, and — crucially — stays a `usize`-underflow-safe `const fn` once caps become runtime-configurable (a bare `CAP_WARNINGS - 5` would panic or wrap to "no truncation" if a user set `CAP_WARNINGS` below `5`). Never deviate with a bare literal or with `*`/`/` (those scale unboundedly). Each deviation needs a one-line comment stating why.
 

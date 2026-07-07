@@ -34,7 +34,7 @@ pub fn run(command: &str, verbose: u8) -> Result<i32> {
 
     let summary = summarize_output(&raw, command, result.success());
     println!("{}", summary);
-    timer.track(command, "rtk summary", &raw, &summary);
+    timer.track(command, "obliterate summary", &raw, &summary);
     Ok(result.exit_code)
 }
 

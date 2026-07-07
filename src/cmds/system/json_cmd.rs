@@ -22,12 +22,12 @@ fn validate_json_extension(file: &Path) -> Result<()> {
         };
         if let Some(fmt) = format_name {
             let mut msg = format!(
-                "{} is not a JSON file (detected {}). Use `rtk read` for non-JSON files.",
+                "{} is not a JSON file (detected {}). Use `obliterate read` for non-JSON files.",
                 file.display(),
                 fmt
             );
             if ext == "toml" && file.file_name().is_some_and(|n| n == "Cargo.toml") {
-                msg.push_str(" Tip: use `rtk deps` for Cargo.toml.");
+                msg.push_str(" Tip: use `obliterate deps` for Cargo.toml.");
             }
             bail!("{}", msg);
         }
@@ -55,7 +55,7 @@ pub fn run(file: &Path, max_depth: usize, schema_only: bool, verbose: u8) -> Res
     println!("{}", output);
     timer.track(
         &format!("cat {}", file.display()),
-        "rtk json",
+        "obliterate json",
         &content,
         &output,
     );
@@ -82,7 +82,7 @@ pub fn run_stdin(max_depth: usize, schema_only: bool, verbose: u8) -> Result<()>
         filter_json_compact(&content, max_depth)?
     };
     println!("{}", output);
-    timer.track("cat - (stdin)", "rtk json -", &content, &output);
+    timer.track("cat - (stdin)", "obliterate json -", &content, &output);
     Ok(())
 }
 
@@ -289,7 +289,7 @@ mod tests {
     #[test]
     fn test_cargo_toml_suggests_deps() {
         let err = validate_json_extension(Path::new("Cargo.toml")).unwrap_err();
-        assert!(err.to_string().contains("rtk deps"));
+        assert!(err.to_string().contains("obliterate deps"));
     }
 
     #[test]

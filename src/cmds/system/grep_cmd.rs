@@ -71,7 +71,7 @@ pub fn run(
 
         timer.track_passthrough(
             &format!("grep {}", args_display),
-            &format!("rtk grep {} (passthrough)", args_display),
+            &format!("obliterate grep {} (passthrough)", args_display),
         );
         return Ok(result.exit_code);
     }
@@ -88,7 +88,7 @@ pub fn run(
         println!("{}", msg);
         timer.track(
             &format!("grep -rn '{}' {}", pattern, path),
-            "rtk grep",
+            "obliterate grep",
             &raw_output,
             &msg,
         );
@@ -97,7 +97,7 @@ pub fn run(
 
     // Always filter: truncate long lines, apply per-file and global caps.
     // Output in standard file:line:content format that AI agents can parse.
-    // (A passthrough approach yields 0% savings — no reason for RTK to exist on that path.)
+    // (A passthrough approach yields 0% savings — no reason for Obliterate to exist on that path.)
     let total_matches = result.stdout.lines().count();
 
     let context_re = if context_only {
@@ -124,8 +124,8 @@ pub fn run(
         by_file.entry(file).or_default().push((line_num, cleaned));
     }
 
-    let mut rtk_output = String::new();
-    rtk_output.push_str(&format!(
+    let mut obliterate_output = String::new();
+    obliterate_output.push_str(&format!(
         "{} matches in {} files:\n\n",
         total_matches,
         by_file.len()
@@ -146,21 +146,21 @@ pub fn run(
             if shown >= max_results {
                 break;
             }
-            rtk_output.push_str(&format!("{}:{}:{}\n", file_display, line_num, content));
+            obliterate_output.push_str(&format!("{}:{}:{}\n", file_display, line_num, content));
             shown += 1;
         }
     }
 
     if total_matches > shown {
-        rtk_output.push_str(&format!("[+{} more]\n", total_matches - shown));
+        obliterate_output.push_str(&format!("[+{} more]\n", total_matches - shown));
     }
 
-    print!("{}", rtk_output);
+    print!("{}", obliterate_output);
     timer.track(
         &format!("grep -rn '{}' {}", pattern, path),
-        "rtk grep",
+        "obliterate grep",
         &raw_output,
-        &rtk_output,
+        &obliterate_output,
     );
 
     Ok(exit_code)
